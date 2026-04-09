@@ -25,6 +25,7 @@ export async function GET(
     const games = data.events.map((e) => ({
       id: e.id,
       name: e.name,
+      startTime: e.date,
       status: e.status.type.state,
       clock: e.status.displayClock,
       period: e.status.period,

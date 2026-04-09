@@ -17,6 +17,18 @@ enum League: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    var shortName: String {
+        switch self {
+        case .nba: "NBA"
+        case .nfl: "NFL"
+        case .nhl: "NHL"
+        case .mlb: "MLB"
+        case .ncaafb: "CFB"
+        case .ncaamb: "CBB"
+        case .mls: "MLS"
+        }
+    }
+
     var icon: String {
         switch self {
         case .nba: "basketball.fill"

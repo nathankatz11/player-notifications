@@ -20,6 +20,7 @@ const LEAGUE_PATHS: Record<League, string> = {
 export interface ESPNEvent {
   id: string;
   name: string;
+  date: string;
   status: {
     type: { state: "pre" | "in" | "post" };
     displayClock: string;

@@ -8,6 +8,8 @@ struct AddAlertView: View {
     @State private var selectedTrigger: TriggerType?
     @State private var selectedEntity: SearchResult?
     @State private var deliveryMethod: DeliveryMethod = .push
+    @State private var teamFilter = ""
+    @State private var showSuccess = false
 
     var body: some View {
         NavigationStack {
@@ -31,6 +33,21 @@ struct AddAlertView: View {
             } message: {
                 Text(viewModel.errorMessage ?? "")
             }
+            .overlay {
+                if showSuccess {
+                    VStack(spacing: 12) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 56))
+                            .foregroundStyle(.green)
+                        Text("Alert Created")
+                            .font(.headline)
+                    }
+                    .padding(32)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                    .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: showSuccess)
             .task {
                 await viewModel.loadTeams()
             }
@@ -54,6 +71,15 @@ struct AddAlertView: View {
         }
     }
 
+    private var filteredTeams: [Team] {
+        guard !teamFilter.isEmpty else { return viewModel.teams }
+        let query = teamFilter.lowercased()
+        return viewModel.teams.filter {
+            $0.name.lowercased().contains(query) ||
+            $0.abbreviation.lowercased().contains(query)
+        }
+    }
+
     private var teamPickerSection: some View {
         Section("Select a Team") {
             if viewModel.isLoadingTeams {
@@ -66,7 +92,23 @@ struct AddAlertView: View {
                 Text("No teams available")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(viewModel.teams) { team in
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Filter teams...", text: $teamFilter)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    if !teamFilter.isEmpty {
+                        Button {
+                            teamFilter = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                ForEach(filteredTeams) { team in
                     Button {
                         selectedEntity = SearchResult(
                             id: team.id,
@@ -222,6 +264,10 @@ struct AddAlertView: View {
             deliveryMethod: deliveryMethod
         )
 
+        guard viewModel.errorMessage == nil else { return }
+
+        showSuccess = true
+        try? await Task.sleep(for: .milliseconds(800))
         dismiss()
     }
 }

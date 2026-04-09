@@ -28,6 +28,11 @@ struct HomeView: View {
             .sheet(isPresented: $showingAddAlert) {
                 AddAlertView()
             }
+            .onChange(of: showingAddAlert) { _, isShowing in
+                if !isShowing {
+                    Task { await viewModel.loadSubscriptions() }
+                }
+            }
             .task {
                 await viewModel.loadSubscriptions()
             }
@@ -38,15 +43,50 @@ struct HomeView: View {
     }
 
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label("No Alerts", systemImage: "bell.slash")
-        } description: {
-            Text("Add your first alert to get notified about player stats and game events.")
-        } actions: {
-            Button("Add Alert") {
+        VStack(spacing: 24) {
+            Image(systemName: "bell.badge")
+                .font(.system(size: 48))
+                .foregroundStyle(Color.accentColor)
+
+            Text("Get Started")
+                .font(.title2.bold())
+
+            VStack(alignment: .leading, spacing: 16) {
+                stepRow(number: 1, text: "Browse scores", icon: "sportscourt")
+                stepRow(number: 2, text: "Pick a team", icon: "person.2.fill")
+                stepRow(number: 3, text: "Choose what to track", icon: "bell.fill")
+            }
+            .padding(.horizontal, 32)
+
+            Button {
                 showingAddAlert = true
+            } label: {
+                Text("Create Your First Alert")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding(.horizontal, 32)
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    private func stepRow(number: Int, text: String, icon: String) -> some View {
+        HStack(spacing: 14) {
+            Text("\(number)")
+                .font(.subheadline.bold())
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 28)
+                .background(Color.accentColor, in: Circle())
+
+            Image(systemName: icon)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
+
+            Text(text)
+                .font(.body)
         }
     }
 
