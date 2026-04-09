@@ -110,7 +110,7 @@ final class APIService: Sendable {
     private func get(_ path: String) async throws -> Data {
         let url = URL(string: "\(baseURL)\(path)")!
         let (data, response) = try await URLSession.shared.data(from: url)
-        try validateResponse(response)
+        try validateResponse(response, data: data)
         return data
     }
 
@@ -120,7 +120,7 @@ final class APIService: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
         let (data, response) = try await URLSession.shared.data(for: request)
-        try validateResponse(response)
+        try validateResponse(response, data: data)
         return data
     }
 
@@ -130,7 +130,7 @@ final class APIService: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
         let (data, response) = try await URLSession.shared.data(for: request)
-        try validateResponse(response)
+        try validateResponse(response, data: data)
         return data
     }
 
@@ -138,15 +138,21 @@ final class APIService: Sendable {
         var request = URLRequest(url: URL(string: "\(baseURL)\(path)")!)
         request.httpMethod = "DELETE"
         let (data, response) = try await URLSession.shared.data(for: request)
-        try validateResponse(response)
+        try validateResponse(response, data: data)
         return data
     }
 
-    private func validateResponse(_ response: URLResponse) throws {
+    private func validateResponse(_ response: URLResponse, data: Data? = nil) throws {
         guard let http = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
         }
         guard (200...299).contains(http.statusCode) else {
+            // Try to parse the server's error message
+            if let data,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let message = json["error"] as? String {
+                throw APIError.serverMessage(message)
+            }
             throw APIError.httpError(statusCode: http.statusCode)
         }
     }
@@ -202,6 +208,7 @@ struct TrendingResponse: Decodable, Sendable {
 enum APIError: LocalizedError {
     case invalidResponse
     case httpError(statusCode: Int)
+    case serverMessage(String)
 
     var errorDescription: String? {
         switch self {
@@ -209,6 +216,8 @@ enum APIError: LocalizedError {
             "Invalid server response"
         case .httpError(let code):
             "Server error (HTTP \(code))"
+        case .serverMessage(let message):
+            message
         }
     }
 }

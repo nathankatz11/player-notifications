@@ -3,7 +3,7 @@ import { eq, and, count } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { subscriptions, users } from "@/lib/db/schema";
 
-const FREE_TIER_LIMIT = 3;
+const FREE_TIER_LIMIT = 10;
 
 /**
  * GET /api/subscriptions?userId=xxx
