@@ -195,6 +195,10 @@ struct AlertCard: View {
         subscription.active
     }
 
+    private var isPlayerSubscription: Bool {
+        subscription.type == .playerStat
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
@@ -206,15 +210,37 @@ struct AlertCard: View {
                     )
                     .frame(width: 90, height: 90)
 
-                // Inner filled circle
-                Circle()
-                    .fill(leagueColor.opacity(isActive ? 0.15 : 0.05))
-                    .frame(width: 80, height: 80)
+                if isPlayerSubscription,
+                   let url = League.playerHeadshotURL(espnId: subscription.entityId, league: subscription.league, size: 80) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 80, height: 80)
+                                .clipShape(Circle())
+                        default:
+                            Circle()
+                                .fill(leagueColor.opacity(isActive ? 0.15 : 0.05))
+                                .frame(width: 80, height: 80)
+                                .overlay {
+                                    Image(systemName: subscription.league.icon)
+                                        .font(.system(size: 28, weight: .medium))
+                                        .foregroundStyle(leagueColor.opacity(isActive ? 1.0 : 0.3))
+                                }
+                        }
+                    }
+                } else {
+                    // Team subscriptions: keep SF Symbol
+                    Circle()
+                        .fill(leagueColor.opacity(isActive ? 0.15 : 0.05))
+                        .frame(width: 80, height: 80)
 
-                // Sport icon
-                Image(systemName: subscription.league.icon)
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundStyle(leagueColor.opacity(isActive ? 1.0 : 0.3))
+                    Image(systemName: subscription.league.icon)
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(leagueColor.opacity(isActive ? 1.0 : 0.3))
+                }
             }
             .padding(.top, 14)
 

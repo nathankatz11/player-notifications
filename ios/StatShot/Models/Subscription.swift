@@ -66,12 +66,31 @@ enum League: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Sport path segment used for ESPN player headshot URLs.
+    var espnHeadshotSport: String {
+        switch self {
+        case .nba: "nba"
+        case .nfl: "nfl"
+        case .nhl: "nhl"
+        case .mlb: "mlb"
+        case .ncaafb: "college-football"
+        case .ncaamb: "mens-college-basketball"
+        case .mls: "soccer"
+        }
+    }
+
+    /// Builds the ESPN headshot URL for a player in this league.
+    static func playerHeadshotURL(espnId: String, league: League, size: Int = 96) -> URL? {
+        let sport = league.espnHeadshotSport
+        return URL(string: "https://a.espncdn.com/combiner/i?img=/i/headshots/\(sport)/players/full/\(espnId).png&w=\(size)&h=\(size)")
+    }
+
     var triggers: [TriggerType] {
         switch self {
-        case .nba: [.pointsScored, .turnover, .technicalFoul, .ejection, .gameWinner, .teamWin, .teamLoss]
-        case .nfl: [.touchdown, .interception, .fumble, .sack, .fieldGoal, .teamWin, .teamLoss]
-        case .nhl: [.goal, .assist, .penalty, .hatTrick, .shutout, .teamWin, .teamLoss]
-        case .mlb: [.homeRun, .strikeout, .stolenBase, .error, .teamWin, .teamLoss]
+        case .nba: [.pointsScored, .turnover, .technicalFoul, .ejection, .gameWinner, .threePointer, .block, .steal, .dunk, .teamWin, .teamLoss]
+        case .nfl: [.touchdown, .interception, .fumble, .sack, .fieldGoal, .reception, .rush, .teamWin, .teamLoss]
+        case .nhl: [.goal, .assist, .penalty, .hatTrick, .shutout, .shotOnGoal, .hit, .blockedShot, .takeaway, .giveaway, .teamWin, .teamLoss]
+        case .mlb: [.homeRun, .strikeout, .stolenBase, .error, .walk, .double, .single, .teamWin, .teamLoss]
         case .ncaafb: [.touchdown, .fieldGoal, .teamWin, .teamLoss]
         case .ncaamb: [.pointsScored, .teamWin, .teamLoss]
         case .mls: [.goal, .redCard, .penaltyKick, .teamWin, .teamLoss]
@@ -103,6 +122,20 @@ enum TriggerType: String, Codable, CaseIterable, Identifiable {
     case error
     case redCard = "red_card"
     case penaltyKick = "penalty_kick"
+    case threePointer = "three_pointer"
+    case block
+    case dunk
+    case steal
+    case reception
+    case rush
+    case shotOnGoal = "shot_on_goal"
+    case hit
+    case blockedShot = "blocked_shot"
+    case takeaway
+    case giveaway
+    case walk
+    case double
+    case single
 
     var id: String { rawValue }
 
@@ -131,6 +164,20 @@ enum TriggerType: String, Codable, CaseIterable, Identifiable {
         case .error: "Error"
         case .redCard: "Red Card"
         case .penaltyKick: "Penalty Kick"
+        case .threePointer: "Three Pointer"
+        case .block: "Block"
+        case .dunk: "Dunk"
+        case .steal: "Steal"
+        case .reception: "Reception"
+        case .rush: "Rush"
+        case .shotOnGoal: "Shot on Goal"
+        case .hit: "Hit"
+        case .blockedShot: "Blocked Shot"
+        case .takeaway: "Takeaway"
+        case .giveaway: "Giveaway"
+        case .walk: "Walk"
+        case .double: "Double"
+        case .single: "Single"
         }
     }
 
@@ -159,6 +206,20 @@ enum TriggerType: String, Codable, CaseIterable, Identifiable {
         case .error: "ERR"
         case .redCard: "RED"
         case .penaltyKick: "PK"
+        case .threePointer: "3PT"
+        case .block: "BLK"
+        case .dunk: "DUNK"
+        case .steal: "STL"
+        case .reception: "REC"
+        case .rush: "RUSH"
+        case .shotOnGoal: "SOG"
+        case .hit: "HIT"
+        case .blockedShot: "BS"
+        case .takeaway: "TA"
+        case .giveaway: "GA"
+        case .walk: "BB"
+        case .double: "2B"
+        case .single: "1B"
         }
     }
 
@@ -187,6 +248,20 @@ enum TriggerType: String, Codable, CaseIterable, Identifiable {
         case .error: "Fielding mistake lets a runner advance"
         case .redCard: "Ejected from the match"
         case .penaltyKick: "Awarded a shot from the spot"
+        case .threePointer: "Drains one from beyond the arc"
+        case .block: "Swats the shot away"
+        case .dunk: "Throws it down with authority"
+        case .steal: "Rips the ball away"
+        case .reception: "Catches a pass"
+        case .rush: "Carries the ball"
+        case .shotOnGoal: "Fires a shot on net"
+        case .hit: "Delivers a body check"
+        case .blockedShot: "Blocks a shot on goal"
+        case .takeaway: "Takes the puck away"
+        case .giveaway: "Turns the puck over"
+        case .walk: "Draws a base on balls"
+        case .double: "Lines one into the gap"
+        case .single: "Knocks a base hit"
         }
     }
 }

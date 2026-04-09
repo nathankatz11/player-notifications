@@ -45,6 +45,20 @@ const TRIGGER_LABEL: Record<string, string> = {
   ejection: "EJECTION",
   technical_foul: "TECHNICAL FOUL",
   red_card: "RED CARD",
+  three_pointer: "THREE",
+  block: "BLOCK",
+  dunk: "DUNK",
+  steal: "STEAL",
+  reception: "RECEPTION",
+  rush: "RUSH",
+  shot_on_goal: "SHOT",
+  hit: "HIT",
+  blocked_shot: "BLOCKED SHOT",
+  takeaway: "TAKEAWAY",
+  giveaway: "GIVEAWAY",
+  walk: "WALK",
+  double: "DOUBLE",
+  single: "SINGLE",
 };
 
 /**
@@ -173,6 +187,24 @@ const TRIGGER_MAP: Record<string, Trigger> = {
   "ejection": "ejection",
   "technical foul": "technical_foul",
   "red card": "red_card",
+  // NBA
+  "three point": "three_pointer",
+  "block": "block",
+  "dunk": "dunk",
+  "steal": "steal",
+  // NFL
+  "pass reception": "reception",
+  "rush": "rush",
+  // NHL
+  "shot": "shot_on_goal",
+  "hit": "hit",
+  "blocked": "blocked_shot",
+  "takeaway": "takeaway",
+  "giveaway": "giveaway",
+  // MLB
+  "walk": "walk",
+  "double": "double",
+  "single": "single",
 };
 
 function parsePlay(play: ESPNPlay, league: League, event?: ESPNEvent): ParsedPlay | null {
@@ -183,7 +215,17 @@ function parsePlay(play: ESPNPlay, league: League, event?: ESPNEvent): ParsedPla
 
   if (!playerId && !teamId) return null;
 
-  const trigger = TRIGGER_MAP[playType];
+  let trigger: Trigger | undefined = TRIGGER_MAP[playType];
+
+  // NBA text-based triggers
+  if (!trigger) {
+    const text = play.text?.toLowerCase() ?? "";
+    if (text.includes("three point") && play.scoreValue === 3) trigger = "three_pointer";
+    else if (text.includes("block")) trigger = "block";
+    else if (playType.includes("dunk")) trigger = "dunk";
+    else if (text.includes("steal")) trigger = "steal";
+  }
+
   if (!trigger) return null;
 
   // Build a short play blurb: prefer player name + raw text, fall back to raw text

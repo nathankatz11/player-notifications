@@ -92,6 +92,10 @@ struct AlertDetailView: View {
 
     // MARK: - Header
 
+    private var isPlayerSubscription: Bool {
+        subscription.type == .playerStat
+    }
+
     private var headerSection: some View {
         VStack(spacing: 12) {
             ZStack {
@@ -99,13 +103,36 @@ struct AlertDetailView: View {
                     .strokeBorder(leagueColor, lineWidth: 6)
                     .frame(width: 120, height: 120)
 
-                Circle()
-                    .fill(leagueColor.opacity(0.15))
-                    .frame(width: 108, height: 108)
+                if isPlayerSubscription,
+                   let url = League.playerHeadshotURL(espnId: subscription.entityId, league: subscription.league, size: 120) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 108, height: 108)
+                                .clipShape(Circle())
+                        default:
+                            Circle()
+                                .fill(leagueColor.opacity(0.15))
+                                .frame(width: 108, height: 108)
+                                .overlay {
+                                    Image(systemName: subscription.league.icon)
+                                        .font(.system(size: 44, weight: .medium))
+                                        .foregroundStyle(leagueColor)
+                                }
+                        }
+                    }
+                } else {
+                    Circle()
+                        .fill(leagueColor.opacity(0.15))
+                        .frame(width: 108, height: 108)
 
-                Image(systemName: subscription.league.icon)
-                    .font(.system(size: 44, weight: .medium))
-                    .foregroundStyle(leagueColor)
+                    Image(systemName: subscription.league.icon)
+                        .font(.system(size: 44, weight: .medium))
+                        .foregroundStyle(leagueColor)
+                }
             }
 
             Text(subscription.entityName)

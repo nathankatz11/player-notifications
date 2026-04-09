@@ -133,9 +133,26 @@ struct AddAlertView: View {
                         viewModel.searchResults = []
                     } label: {
                         HStack(spacing: 10) {
-                            Image(systemName: "person.fill")
-                                .foregroundStyle(Color.accentColor)
-                                .frame(width: 24)
+                            if let url = League.playerHeadshotURL(espnId: player.id, league: selectedLeague, size: 36) {
+                                AsyncImage(url: url) { phase in
+                                    switch phase {
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 36, height: 36)
+                                            .clipShape(Circle())
+                                    default:
+                                        Image(systemName: "person.fill")
+                                            .foregroundStyle(Color.accentColor)
+                                            .frame(width: 36, height: 36)
+                                    }
+                                }
+                            } else {
+                                Image(systemName: "person.fill")
+                                    .foregroundStyle(Color.accentColor)
+                                    .frame(width: 36, height: 36)
+                            }
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(player.name)
                                     .font(.body.weight(.bold))
@@ -213,9 +230,26 @@ struct AddAlertView: View {
                 } label: {
                     if result.type == "player" {
                         HStack(spacing: 10) {
-                            Image(systemName: "person.fill")
-                                .foregroundStyle(Color.accentColor)
-                                .frame(width: 24)
+                            if let url = League.playerHeadshotURL(espnId: result.id, league: selectedLeague, size: 36) {
+                                AsyncImage(url: url) { phase in
+                                    switch phase {
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 36, height: 36)
+                                            .clipShape(Circle())
+                                    default:
+                                        Image(systemName: "person.fill")
+                                            .foregroundStyle(Color.accentColor)
+                                            .frame(width: 36, height: 36)
+                                    }
+                                }
+                            } else {
+                                Image(systemName: "person.fill")
+                                    .foregroundStyle(Color.accentColor)
+                                    .frame(width: 36, height: 36)
+                            }
                             Text(result.name)
                                 .font(.body.weight(.medium))
                                 .foregroundStyle(.primary)
