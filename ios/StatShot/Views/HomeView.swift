@@ -4,6 +4,10 @@ struct HomeView: View {
     @State private var viewModel = SubscriptionViewModel()
     @State private var showingAddAlert = false
 
+    private let columns = [
+        GridItem(.adaptive(minimum: 150), spacing: 16)
+    ]
+
     var body: some View {
         NavigationStack {
             Group {
@@ -12,7 +16,7 @@ struct HomeView: View {
                 } else if viewModel.subscriptions.isEmpty {
                     emptyState
                 } else {
-                    subscriptionList
+                    alertGrid
                 }
             }
             .navigationTitle("My Alerts")
@@ -40,7 +44,10 @@ struct HomeView: View {
                 await viewModel.loadSubscriptions()
             }
         }
+        .preferredColorScheme(.dark)
     }
+
+    // MARK: - Empty State
 
     private var emptyState: some View {
         VStack(spacing: 24) {
@@ -90,51 +97,111 @@ struct HomeView: View {
         }
     }
 
-    private var subscriptionList: some View {
-        List {
-            ForEach(viewModel.subscriptions) { subscription in
-                SubscriptionRow(subscription: subscription)
-                    .swipeActions {
-                        Button("Delete", role: .destructive) {
+    // MARK: - Alert Grid
+
+    private var alertGrid: some View {
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 16) {
+                ForEach(viewModel.subscriptions) { subscription in
+                    AlertCard(subscription: subscription) {
+                        Task { await viewModel.toggleSubscription(subscription) }
+                    }
+                    .contextMenu {
+                        Button(subscription.active ? "Pause" : "Resume",
+                               systemImage: subscription.active ? "pause.circle" : "play.circle") {
+                            Task { await viewModel.toggleSubscription(subscription) }
+                        }
+                        Button("Delete", systemImage: "trash", role: .destructive) {
                             Task { await viewModel.deleteSubscription(subscription) }
                         }
                     }
+                }
             }
+            .padding(16)
         }
     }
 }
 
-struct SubscriptionRow: View {
+// MARK: - Alert Card
+
+struct AlertCard: View {
     let subscription: Subscription
+    let onTap: () -> Void
+
+    private var leagueColor: Color {
+        subscription.league.color
+    }
+
+    private var isActive: Bool {
+        subscription.active
+    }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: subscription.league.icon)
-                .font(.body)
-                .foregroundStyle(.white)
-                .frame(width: 36, height: 36)
-                .background(Color.accentColor, in: Circle())
+        Button(action: onTap) {
+            VStack(spacing: 0) {
+                ZStack {
+                    // Outer ring
+                    Circle()
+                        .strokeBorder(
+                            leagueColor.opacity(isActive ? 1.0 : 0.25),
+                            lineWidth: 5
+                        )
+                        .frame(width: 90, height: 90)
 
-            VStack(alignment: .leading, spacing: 4) {
+                    // Inner filled circle
+                    Circle()
+                        .fill(leagueColor.opacity(isActive ? 0.15 : 0.05))
+                        .frame(width: 80, height: 80)
+
+                    // Sport icon
+                    Image(systemName: subscription.league.icon)
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(leagueColor.opacity(isActive ? 1.0 : 0.3))
+                }
+                .padding(.top, 14)
+
+                // Entity name
                 Text(subscription.entityName)
-                    .font(.headline)
+                    .font(.system(.subheadline, design: .rounded, weight: .bold))
+                    .foregroundStyle(isActive ? .white : .white.opacity(0.35))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .frame(height: 40)
+                    .padding(.top, 8)
 
-                Text("\(subscription.trigger.displayName) • \(subscription.league.displayName)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                // Trigger badge
+                Text(subscription.trigger.shortLabel)
+                    .font(.system(.caption2, design: .rounded, weight: .heavy))
+                    .foregroundStyle(isActive ? leagueColor : leagueColor.opacity(0.4))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3)
+                    .background(
+                        Capsule()
+                            .fill(leagueColor.opacity(isActive ? 0.15 : 0.05))
+                    )
+                    .padding(.top, 4)
+
+                // League short name
+                Text(subscription.league.shortName)
+                    .font(.system(.caption2, design: .rounded))
+                    .foregroundStyle(.secondary.opacity(isActive ? 1.0 : 0.4))
+                    .padding(.top, 2)
+                    .padding(.bottom, 14)
             }
-
-            Spacer()
-
-            if !subscription.active {
-                Text("Paused")
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(.orange.opacity(0.1), in: Capsule())
-            }
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color(white: 0.11))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(
+                        leagueColor.opacity(isActive ? 0.2 : 0.06),
+                        lineWidth: 1
+                    )
+            )
         }
-        .padding(.vertical, 4)
+        .buttonStyle(.plain)
+        .opacity(isActive ? 1.0 : 0.6)
     }
 }

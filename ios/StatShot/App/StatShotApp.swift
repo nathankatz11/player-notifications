@@ -15,6 +15,8 @@ struct StatShotApp: App {
                         await authViewModel.signInWithApple()
                     }
                 }
+                .tint(.orange)
+                .preferredColorScheme(.dark)
         }
     }
 }

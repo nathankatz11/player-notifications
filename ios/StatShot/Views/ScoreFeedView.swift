@@ -170,14 +170,19 @@ struct ScoreFeedView: View {
     }
 
     private var gamesList: some View {
-        List(viewModel.games) { game in
-            GameRow(game: game, league: viewModel.selectedLeague)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    selectedGame = game
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                ForEach(viewModel.games) { game in
+                    GameRow(game: game, league: viewModel.selectedLeague)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            selectedGame = game
+                        }
                 }
+            }
+            .padding(.horizontal)
+            .padding(.top, 4)
         }
-        .listStyle(.plain)
     }
 }
 
@@ -194,36 +199,35 @@ struct GameRow: View {
     private var isTied: Bool { awayScore == homeScore }
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Spacer()
-                statusBadge
-                Spacer()
-            }
+        HStack(spacing: 12) {
+            // Away side: logo + abbr + score
+            teamSide(
+                abbreviation: game.awayTeam?.abbreviation ?? "—",
+                score: game.awayTeam?.score ?? "0",
+                isWinner: isTied || awayScore > homeScore,
+                trailing: true
+            )
 
-            HStack {
-                teamColumn(
-                    abbreviation: game.awayTeam?.abbreviation ?? "—",
-                    name: game.awayTeam?.team ?? "Away",
-                    score: game.awayTeam?.score ?? "0",
-                    isWinner: isTied || awayScore > homeScore
-                )
+            Text("—")
+                .font(.title3)
+                .foregroundStyle(.quaternary)
 
-                Text("@")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            // Home side: score + abbr + logo
+            teamSide(
+                abbreviation: game.homeTeam?.abbreviation ?? "—",
+                score: game.homeTeam?.score ?? "0",
+                isWinner: isTied || homeScore > awayScore,
+                trailing: false
+            )
 
-                teamColumn(
-                    abbreviation: game.homeTeam?.abbreviation ?? "—",
-                    name: game.homeTeam?.team ?? "Home",
-                    score: game.homeTeam?.score ?? "0",
-                    isWinner: isTied || homeScore > awayScore
-                )
-            }
+            // Status on right edge
+            statusBadge
+                .frame(width: 56, alignment: .trailing)
         }
-        .padding(.vertical, 6)
-        .listRowBackground(game.isLive ? Color.red.opacity(0.03) : nil)
-        .opacity(game.status == "post" ? 0.8 : 1.0)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .opacity(game.status == "post" ? 0.7 : 1.0)
         .onAppear {
             if game.isLive {
                 isPulsing = true
@@ -236,31 +240,50 @@ struct GameRow: View {
         return URL(string: "https://a.espncdn.com/i/teamlogos/\(league.espnSport)/500/\(abbr).png")
     }
 
-    private func teamColumn(abbreviation: String, name: String, score: String, isWinner: Bool) -> some View {
-        VStack(spacing: 4) {
-            AsyncImage(url: teamLogoURL(abbreviation: abbreviation)) { image in
-                image
-                    .resizable()
-                    .scaledToFit()
-            } placeholder: {
+    /// A single team side. `trailing` means the score is on the trailing edge (away team layout: logo abbr score).
+    /// When `trailing` is false, layout is: score abbr logo (home team).
+    @ViewBuilder
+    private func teamSide(abbreviation: String, score: String, isWinner: Bool, trailing: Bool) -> some View {
+        HStack(spacing: 8) {
+            if trailing {
+                teamLogo(abbreviation: abbreviation)
                 Text(abbreviation)
-                    .font(.caption2.bold())
+                    .font(.subheadline.bold())
                     .foregroundStyle(.secondary)
+                    .frame(width: 36, alignment: .leading)
+                Spacer(minLength: 0)
+                Text(score)
+                    .font(.title.bold())
+                    .foregroundStyle(isWinner ? .primary : .secondary)
+                    .monospacedDigit()
+            } else {
+                Text(score)
+                    .font(.title.bold())
+                    .foregroundStyle(isWinner ? .primary : .secondary)
+                    .monospacedDigit()
+                Spacer(minLength: 0)
+                Text(abbreviation)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.secondary)
+                    .frame(width: 36, alignment: .trailing)
+                teamLogo(abbreviation: abbreviation)
             }
-            .frame(width: 32, height: 32)
-            .clipShape(Circle())
-
-            Text(abbreviation)
-                .font(.headline)
-            Text(score)
-                .font(isWinner ? .title2.bold() : .title3)
-                .foregroundStyle(isWinner ? .primary : .secondary)
-            Text(name)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func teamLogo(abbreviation: String) -> some View {
+        AsyncImage(url: teamLogoURL(abbreviation: abbreviation)) { image in
+            image
+                .resizable()
+                .scaledToFit()
+        } placeholder: {
+            Text(abbreviation)
+                .font(.caption2.bold())
+                .foregroundStyle(.tertiary)
+        }
+        .frame(width: 36, height: 36)
+        .clipShape(Circle())
     }
 
     private var statusColor: Color {
@@ -272,7 +295,7 @@ struct GameRow: View {
     }
 
     private var statusBadge: some View {
-        HStack(spacing: 4) {
+        VStack(spacing: 2) {
             if game.isLive {
                 Circle()
                     .fill(.red)
@@ -284,22 +307,12 @@ struct GameRow: View {
                     )
             }
 
-            if game.status == "pre" {
-                Image(systemName: "clock")
-                    .font(.caption2)
-                    .foregroundStyle(.blue)
-            }
-
             Text(game.statusText)
-                .font(.caption.bold())
+                .font(.caption2.bold())
                 .foregroundStyle(statusColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 2)
-        .background(
-            statusColor.opacity(0.1),
-            in: Capsule()
-        )
     }
 }
 

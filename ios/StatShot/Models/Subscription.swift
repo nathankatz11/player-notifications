@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 enum League: String, Codable, CaseIterable, Identifiable {
     case nba, nfl, nhl, mlb, ncaafb, ncaamb, mls
@@ -38,6 +39,18 @@ enum League: String, Codable, CaseIterable, Identifiable {
         case .ncaafb: "football.fill"
         case .ncaamb: "basketball.fill"
         case .mls: "soccerball"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .nba: .orange
+        case .nfl: .green
+        case .nhl: .blue
+        case .mlb: .red
+        case .ncaafb: .mint
+        case .ncaamb: .purple
+        case .mls: .teal
         }
     }
 
@@ -118,6 +131,34 @@ enum TriggerType: String, Codable, CaseIterable, Identifiable {
         case .error: "Error"
         case .redCard: "Red Card"
         case .penaltyKick: "Penalty Kick"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .pointsScored: "PTS"
+        case .turnover: "TOs"
+        case .technicalFoul: "TECH"
+        case .ejection: "EJECT"
+        case .gameWinner: "GW"
+        case .teamWin: "WIN"
+        case .teamLoss: "LOSS"
+        case .touchdown: "TDs"
+        case .interception: "INTs"
+        case .fumble: "FUM"
+        case .sack: "SACK"
+        case .fieldGoal: "FG"
+        case .goal: "GOAL"
+        case .assist: "AST"
+        case .penalty: "PEN"
+        case .hatTrick: "HAT"
+        case .shutout: "SO"
+        case .homeRun: "HRs"
+        case .strikeout: "Ks"
+        case .stolenBase: "SB"
+        case .error: "ERR"
+        case .redCard: "RED"
+        case .penaltyKick: "PK"
         }
     }
 
