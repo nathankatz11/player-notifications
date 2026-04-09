@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		04E9AF5997BED8F184F0EB05 /* AlertDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D56876D8FB3B59A941CD3929 /* AlertDetailView.swift */; };
 		06264968D3316F56A46BB68D /* SubscriptionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 855EBAA154ED1451671F6AF0 /* SubscriptionViewModel.swift */; };
 		09F9924BF7F7B13F3A497550 /* Alert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF524FD5C57E6ABCBBC645C /* Alert.swift */; };
 		0EBFDDA345FB3F9D027ABAFA /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15064294B5EF2B7228B6B9A /* AuthService.swift */; };
@@ -42,6 +43,7 @@
 		A15064294B5EF2B7228B6B9A /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		D16C9990E01908BD5FDC16E1 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		D1AC6F250B4C14E2EE831F01 /* Subscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subscription.swift; sourceTree = "<group>"; };
+		D56876D8FB3B59A941CD3929 /* AlertDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertDetailView.swift; sourceTree = "<group>"; };
 		D80379A3686A24888760DC53 /* StripeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripeService.swift; sourceTree = "<group>"; };
 		E24E60A6B44F65A3B15913F3 /* StatShotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatShotApp.swift; sourceTree = "<group>"; };
 		F7F7E0D1BFC5F36CC639EF5F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -60,6 +62,7 @@
 			isa = PBXGroup;
 			children = (
 				1D9279201DDF6F818D4D9960 /* AddAlertView.swift */,
+				D56876D8FB3B59A941CD3929 /* AlertDetailView.swift */,
 				26F8FF2BFE2401DF2A59D205 /* AlertHistoryView.swift */,
 				43C805ABE74D556008DA9ED8 /* HomeView.swift */,
 				705DA812ED0439AAA1B9F568 /* PaywallView.swift */,
@@ -186,6 +189,7 @@
 				C9F6AA794CAA5FA8F36E47F7 /* APIService.swift in Sources */,
 				60DAE31B5BA20E0724E6397F /* AddAlertView.swift in Sources */,
 				09F9924BF7F7B13F3A497550 /* Alert.swift in Sources */,
+				04E9AF5997BED8F184F0EB05 /* AlertDetailView.swift in Sources */,
 				7F3937E236EFB22BF5260286 /* AlertHistoryView.swift in Sources */,
 				DA3F97751FD3975F5E956433 /* AlertHistoryViewModel.swift in Sources */,
 				0EBFDDA345FB3F9D027ABAFA /* AuthService.swift in Sources */,

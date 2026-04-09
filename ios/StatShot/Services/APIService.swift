@@ -85,6 +85,10 @@ final class APIService: Sendable {
         _ = try await put("/api/subscriptions/\(id)", body: ["active": active])
     }
 
+    func updateSubscription(id: String, updates: SubscriptionUpdate) async throws {
+        _ = try await put("/api/subscriptions/\(id)", body: updates)
+    }
+
     func deleteSubscription(id: String) async throws {
         _ = try await delete("/api/subscriptions/\(id)")
     }
@@ -168,6 +172,12 @@ struct CreateSubscriptionParams: Encodable {
     let entityName: String
     let trigger: String
     let deliveryMethod: String
+}
+
+struct SubscriptionUpdate: Encodable {
+    var trigger: String?
+    var deliveryMethod: String?
+    var active: Bool?
 }
 
 struct SearchResponse: Decodable {

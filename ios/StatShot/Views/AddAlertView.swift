@@ -165,7 +165,7 @@ struct AddAlertView: View {
     // MARK: - Player Search (Primary)
 
     private var playerSearchSection: some View {
-        Section {
+        Section(header: Text("Find a \(selectedLeague.displayName) Player")) {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(Color.accentColor)
@@ -266,8 +266,6 @@ struct AddAlertView: View {
                 }
                 .padding(.vertical, 2)
             }
-        } header: {
-            Text("Find a \(selectedLeague.displayName) Player")
         }
     }
 

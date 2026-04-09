@@ -210,7 +210,15 @@ enum DeliveryMethod: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-struct Subscription: Codable, Identifiable {
+struct Subscription: Codable, Identifiable, Hashable {
+    static func == (lhs: Subscription, rhs: Subscription) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
     let id: String
     let userId: String
     let type: SubscriptionType

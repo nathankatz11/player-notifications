@@ -3,6 +3,8 @@ import SwiftUI
 struct HomeView: View {
     @State private var viewModel = SubscriptionViewModel()
     @State private var showingAddAlert = false
+    @State private var selectedSubscription: Subscription?
+    @State private var alertCounts: [String: Int] = [:]
     @State private var tappedId: String?
 
     private let columns = [
@@ -33,16 +35,35 @@ struct HomeView: View {
             .sheet(isPresented: $showingAddAlert) {
                 AddAlertView()
             }
+            .sheet(item: $selectedSubscription) { subscription in
+                AlertDetailView(subscription: subscription) {
+                    // onDeleted — remove locally so the grid updates immediately
+                    viewModel.subscriptions.removeAll { $0.id == subscription.id }
+                }
+            }
             .onChange(of: showingAddAlert) { _, isShowing in
                 if !isShowing {
-                    Task { await viewModel.loadSubscriptions() }
+                    Task {
+                        await viewModel.loadSubscriptions()
+                        await loadAlertCounts()
+                    }
+                }
+            }
+            .onChange(of: selectedSubscription) { _, value in
+                if value == nil {
+                    Task {
+                        await viewModel.loadSubscriptions()
+                        await loadAlertCounts()
+                    }
                 }
             }
             .task {
                 await viewModel.loadSubscriptions()
+                await loadAlertCounts()
             }
             .refreshable {
                 await viewModel.loadSubscriptions()
+                await loadAlertCounts()
                 UIImpactFeedbackGenerator(style: .soft).impactOccurred()
             }
         }
@@ -105,15 +126,28 @@ struct HomeView: View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 16) {
                 ForEach(viewModel.subscriptions) { subscription in
-                    AlertCard(subscription: subscription) {
+                    Button {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         tappedId = subscription.id
                         Task {
                             try? await Task.sleep(for: .milliseconds(150))
                             tappedId = nil
                         }
-                        Task { await viewModel.toggleSubscription(subscription) }
+                        selectedSubscription = subscription
+                    } label: {
+                        AlertCard(subscription: subscription)
+                            .overlay(alignment: .topTrailing) {
+                                if let count = alertCounts[subscription.id], count > 0 {
+                                    Text("\(count)")
+                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                                        .foregroundStyle(.white)
+                                        .frame(minWidth: 22, minHeight: 22)
+                                        .background(Color.red, in: Circle())
+                                        .offset(x: 6, y: -6)
+                                }
+                            }
                     }
+                    .buttonStyle(.plain)
                     .scaleEffect(tappedId == subscription.id ? 0.95 : 1.0)
                     .animation(.easeInOut(duration: 0.15), value: tappedId)
                     .contextMenu {
@@ -130,13 +164,28 @@ struct HomeView: View {
             .padding(16)
         }
     }
+
+    // MARK: - Alert Counts
+
+    private func loadAlertCounts() async {
+        guard let userId = AuthService.shared.currentUserId else { return }
+        do {
+            let alerts = try await APIService.shared.getAlertHistory(userId: userId)
+            var counts: [String: Int] = [:]
+            for alert in alerts {
+                counts[alert.subscriptionId, default: 0] += 1
+            }
+            alertCounts = counts
+        } catch {
+            // Non-critical — silently ignore
+        }
+    }
 }
 
 // MARK: - Alert Card
 
 struct AlertCard: View {
     let subscription: Subscription
-    let onTap: () -> Void
 
     private var leagueColor: Color {
         subscription.league.color
@@ -147,71 +196,68 @@ struct AlertCard: View {
     }
 
     var body: some View {
-        Button(action: onTap) {
-            VStack(spacing: 0) {
-                ZStack {
-                    // Outer ring
-                    Circle()
-                        .strokeBorder(
-                            leagueColor.opacity(isActive ? 1.0 : 0.25),
-                            lineWidth: 5
-                        )
-                        .frame(width: 90, height: 90)
-
-                    // Inner filled circle
-                    Circle()
-                        .fill(leagueColor.opacity(isActive ? 0.15 : 0.05))
-                        .frame(width: 80, height: 80)
-
-                    // Sport icon
-                    Image(systemName: subscription.league.icon)
-                        .font(.system(size: 28, weight: .medium))
-                        .foregroundStyle(leagueColor.opacity(isActive ? 1.0 : 0.3))
-                }
-                .padding(.top, 14)
-
-                // Entity name
-                Text(subscription.entityName)
-                    .font(.system(.subheadline, design: .rounded, weight: .bold))
-                    .foregroundStyle(isActive ? .white : .white.opacity(0.35))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .frame(height: 40)
-                    .padding(.top, 8)
-
-                // Trigger badge
-                Text(subscription.trigger.shortLabel)
-                    .font(.system(.caption2, design: .rounded, weight: .heavy))
-                    .foregroundStyle(isActive ? leagueColor : leagueColor.opacity(0.4))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 3)
-                    .background(
-                        Capsule()
-                            .fill(leagueColor.opacity(isActive ? 0.15 : 0.05))
-                    )
-                    .padding(.top, 4)
-
-                // League short name
-                Text(subscription.league.shortName)
-                    .font(.system(.caption2, design: .rounded))
-                    .foregroundStyle(.secondary.opacity(isActive ? 1.0 : 0.4))
-                    .padding(.top, 2)
-                    .padding(.bottom, 14)
-            }
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Color(white: 0.11))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
+        VStack(spacing: 0) {
+            ZStack {
+                // Outer ring
+                Circle()
                     .strokeBorder(
-                        leagueColor.opacity(isActive ? 0.2 : 0.06),
-                        lineWidth: 1
+                        leagueColor.opacity(isActive ? 1.0 : 0.25),
+                        lineWidth: 5
                     )
-            )
+                    .frame(width: 90, height: 90)
+
+                // Inner filled circle
+                Circle()
+                    .fill(leagueColor.opacity(isActive ? 0.15 : 0.05))
+                    .frame(width: 80, height: 80)
+
+                // Sport icon
+                Image(systemName: subscription.league.icon)
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(leagueColor.opacity(isActive ? 1.0 : 0.3))
+            }
+            .padding(.top, 14)
+
+            // Entity name
+            Text(subscription.entityName)
+                .font(.system(.subheadline, design: .rounded, weight: .bold))
+                .foregroundStyle(isActive ? .white : .white.opacity(0.35))
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .frame(height: 40)
+                .padding(.top, 8)
+
+            // Trigger badge
+            Text(subscription.trigger.shortLabel)
+                .font(.system(.caption2, design: .rounded, weight: .heavy))
+                .foregroundStyle(isActive ? leagueColor : leagueColor.opacity(0.4))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 3)
+                .background(
+                    Capsule()
+                        .fill(leagueColor.opacity(isActive ? 0.15 : 0.05))
+                )
+                .padding(.top, 4)
+
+            // League short name
+            Text(subscription.league.shortName)
+                .font(.system(.caption2, design: .rounded))
+                .foregroundStyle(.secondary.opacity(isActive ? 1.0 : 0.4))
+                .padding(.top, 2)
+                .padding(.bottom, 14)
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(white: 0.11))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(
+                    leagueColor.opacity(isActive ? 0.2 : 0.06),
+                    lineWidth: 1
+                )
+        )
         .opacity(isActive ? 1.0 : 0.6)
     }
 }
