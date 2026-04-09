@@ -147,6 +147,7 @@ struct ScoreFeedView: View {
             }
             .refreshable {
                 await viewModel.loadScores()
+                UIImpactFeedbackGenerator(style: .soft).impactOccurred()
                 viewModel.startAutoRefreshIfNeeded()
             }
             .onDisappear {
@@ -176,6 +177,7 @@ struct ScoreFeedView: View {
                     GameRow(game: game, league: viewModel.selectedLeague)
                         .contentShape(Rectangle())
                         .onTapGesture {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             selectedGame = game
                         }
                 }

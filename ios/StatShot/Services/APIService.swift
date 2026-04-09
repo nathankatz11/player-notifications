@@ -89,6 +89,14 @@ final class APIService: Sendable {
         _ = try await delete("/api/subscriptions/\(id)")
     }
 
+    // MARK: - Trending
+
+    func fetchTrending(league: String) async throws -> [TrendingPlayer] {
+        let data = try await get("/api/trending?league=\(league)")
+        let response = try decoder.decode(TrendingResponse.self, from: data)
+        return response.trending
+    }
+
     // MARK: - Alerts
 
     func getAlertHistory(userId: String) async throws -> [AlertItem] {
@@ -177,6 +185,18 @@ struct Team: Codable, Identifiable, Sendable {
 
 struct TeamsResponse: Decodable, Sendable {
     let teams: [Team]
+}
+
+struct TrendingPlayer: Codable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let league: String
+    let plays: Int
+    let team: String
+}
+
+struct TrendingResponse: Decodable, Sendable {
+    let trending: [TrendingPlayer]
 }
 
 enum APIError: LocalizedError {

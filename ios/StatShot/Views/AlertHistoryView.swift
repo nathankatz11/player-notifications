@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AlertHistoryView: View {
     @State private var viewModel = AlertHistoryViewModel()
+    @State private var hasAppeared = false
 
     var body: some View {
         NavigationStack {
@@ -11,15 +12,22 @@ struct AlertHistoryView: View {
                 } else if viewModel.alerts.isEmpty {
                     emptyState
                 } else {
-                    alertList
+                    alertScrollView
                 }
             }
             .navigationTitle("History")
             .task {
                 await viewModel.loadAlerts()
+                withAnimation(.easeOut(duration: 0.4)) {
+                    hasAppeared = true
+                }
             }
             .refreshable {
+                hasAppeared = false
                 await viewModel.loadAlerts()
+                withAnimation(.easeOut(duration: 0.4)) {
+                    hasAppeared = true
+                }
             }
         }
     }
@@ -34,19 +42,65 @@ struct AlertHistoryView: View {
         }
     }
 
-    // MARK: - Grouped Alert List
+    // MARK: - Scroll View with Cards
 
-    private var alertList: some View {
-        List {
-            ForEach(groupedAlerts, id: \.title) { section in
-                Section(section.title) {
-                    ForEach(section.alerts) { alert in
-                        AlertHistoryRow(alert: alert)
+    private var alertScrollView: some View {
+        ScrollView {
+            LazyVStack(spacing: 0, pinnedViews: .sectionHeaders) {
+                let sections = groupedAlerts
+                ForEach(Array(sections.enumerated()), id: \.element.title) { sectionIndex, section in
+                    Section {
+                        ForEach(Array(section.alerts.enumerated()), id: \.element.id) { rowIndex, alert in
+                            let globalIndex = globalOffset(
+                                forSection: sectionIndex,
+                                row: rowIndex,
+                                sections: sections
+                            )
+                            AlertHistoryCard(alert: alert)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 4)
+                                .opacity(hasAppeared ? 1 : 0)
+                                .offset(y: hasAppeared ? 0 : 20)
+                                .animation(
+                                    .easeOut(duration: 0.35)
+                                        .delay(Double(globalIndex) * 0.05),
+                                    value: hasAppeared
+                                )
+                        }
+                    } header: {
+                        sectionHeader(section.title)
                     }
                 }
             }
+            .padding(.vertical, 8)
         }
+        .scrollContentBackground(.hidden)
     }
+
+    // MARK: - Section Header
+
+    private func sectionHeader(_ title: String) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(title.uppercased())
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                    .tracking(0.8)
+
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
+
+            Divider()
+                .padding(.horizontal, 16)
+        }
+        .background(.background)
+    }
+
+    // MARK: - Date Grouping
 
     private var groupedAlerts: [AlertSection] {
         let calendar = Calendar.current
@@ -77,6 +131,15 @@ struct AlertHistoryView: View {
         }
         return sections
     }
+
+    /// Computes the global row index across all sections for staggered animation delay.
+    private func globalOffset(forSection sectionIndex: Int, row: Int, sections: [AlertSection]) -> Int {
+        var offset = 0
+        for i in 0..<sectionIndex {
+            offset += sections[i].alerts.count
+        }
+        return offset + row
+    }
 }
 
 // MARK: - Section Model
@@ -86,36 +149,43 @@ private struct AlertSection {
     let alerts: [AlertItem]
 }
 
-// MARK: - Alert Row
+// MARK: - Alert Card
 
-private struct AlertHistoryRow: View {
+private struct AlertHistoryCard: View {
     let alert: AlertItem
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Colored left accent bar
-            RoundedRectangle(cornerRadius: 2)
-                .fill(isRecent ? Color.red : Color.secondary.opacity(0.3))
-                .frame(width: 4, height: 44)
-
-            // Sport emoji
+        HStack(spacing: 14) {
             Text(sportEmoji)
-                .font(.title2)
+                .font(.system(size: 24))
+                .frame(width: 40, height: 40)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(alert.message)
                     .font(.body)
+                    .fontWeight(.semibold)
+                    .lineLimit(3)
 
                 HStack(spacing: 6) {
                     Image(systemName: alert.deliveryMethod == "sms" ? "message.fill" : "bell.fill")
                         .font(.caption2)
+                        .foregroundStyle(isRecent ? Color.accentColor : .secondary)
                     Text(relativeTimeString)
                         .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+
+            if isRecent {
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 8, height: 8)
             }
         }
-        .padding(.vertical, 4)
+        .padding(14)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 
     /// Alerts from the last 10 minutes are considered "live/recent"
@@ -125,14 +195,13 @@ private struct AlertHistoryRow: View {
 
     /// Parse sport emoji from the first character of the message
     private var sportEmoji: String {
-        guard let first = alert.message.first else { return "🔔" }
+        guard let first = alert.message.first else { return "\u{1F514}" }
         let firstStr = String(first)
-        // If the message already starts with an emoji, use it
         if firstStr.unicodeScalars.first?.properties.isEmoji == true,
            first.isWholeNumber == false, first != "#", first != "*" {
             return firstStr
         }
-        return "🔔"
+        return "\u{1F514}"
     }
 
     /// Human-friendly relative time: "Just now", "5m ago", "2h ago", etc.

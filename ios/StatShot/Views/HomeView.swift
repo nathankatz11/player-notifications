@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @State private var viewModel = SubscriptionViewModel()
     @State private var showingAddAlert = false
+    @State private var tappedId: String?
 
     private let columns = [
         GridItem(.adaptive(minimum: 150), spacing: 16)
@@ -42,6 +43,7 @@ struct HomeView: View {
             }
             .refreshable {
                 await viewModel.loadSubscriptions()
+                UIImpactFeedbackGenerator(style: .soft).impactOccurred()
             }
         }
         .preferredColorScheme(.dark)
@@ -104,8 +106,16 @@ struct HomeView: View {
             LazyVGrid(columns: columns, spacing: 16) {
                 ForEach(viewModel.subscriptions) { subscription in
                     AlertCard(subscription: subscription) {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        tappedId = subscription.id
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(150))
+                            tappedId = nil
+                        }
                         Task { await viewModel.toggleSubscription(subscription) }
                     }
+                    .scaleEffect(tappedId == subscription.id ? 0.95 : 1.0)
+                    .animation(.easeInOut(duration: 0.15), value: tappedId)
                     .contextMenu {
                         Button(subscription.active ? "Pause" : "Resume",
                                systemImage: subscription.active ? "pause.circle" : "play.circle") {

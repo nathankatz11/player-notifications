@@ -25,6 +25,7 @@ struct AddAlertView: View {
         NavigationStack {
             Form {
                 leagueSection
+                trendingSection
                 playerSearchSection
                 teamPickerSection
                 triggerSection
@@ -59,12 +60,20 @@ struct AddAlertView: View {
             }
             .animation(.easeInOut(duration: 0.3), value: showSuccess)
             .task {
-                await viewModel.loadTeams()
+                await withTaskGroup(of: Void.self) { group in
+                    group.addTask { await self.viewModel.loadTeams() }
+                    group.addTask { await self.viewModel.loadTrending() }
+                }
             }
             .onChange(of: selectedLeague) {
                 viewModel.selectedLeague = selectedLeague
                 selectedEntity = nil
-                Task { await viewModel.loadTeams() }
+                Task {
+                    await withTaskGroup(of: Void.self) { group in
+                        group.addTask { await self.viewModel.loadTeams() }
+                        group.addTask { await self.viewModel.loadTrending() }
+                    }
+                }
             }
         }
     }
@@ -87,6 +96,53 @@ struct AddAlertView: View {
         return viewModel.teams.filter {
             $0.name.lowercased().contains(query) ||
             $0.abbreviation.lowercased().contains(query)
+        }
+    }
+
+    // MARK: - Trending
+
+    @ViewBuilder
+    private var trendingSection: some View {
+        if !viewModel.trendingPlayers.isEmpty && selectedEntity == nil {
+            Section("Trending Now") {
+                ForEach(viewModel.trendingPlayers) { player in
+                    Button {
+                        selectedEntity = SearchResult(
+                            id: player.id,
+                            name: player.name,
+                            type: "player",
+                            imageUrl: nil
+                        )
+                        viewModel.searchQuery = player.name
+                        viewModel.searchResults = []
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "person.fill")
+                                .foregroundStyle(Color.accentColor)
+                                .frame(width: 24)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(player.name)
+                                    .font(.body.weight(.bold))
+                                    .foregroundStyle(.primary)
+                                Text(player.team)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            HStack(spacing: 4) {
+                                Text("\u{1F525}")
+                                    .font(.caption)
+                                Text("\(player.plays)")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.secondary.opacity(0.12), in: Capsule())
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -134,6 +190,7 @@ struct AddAlertView: View {
 
             ForEach(viewModel.searchResults) { result in
                 Button {
+                    UISelectionFeedbackGenerator().selectionChanged()
                     selectedEntity = result
                     viewModel.searchQuery = result.name
                     viewModel.searchResults = []
@@ -231,6 +288,7 @@ struct AddAlertView: View {
                     }
                     ForEach(filteredTeams) { team in
                         Button {
+                            UISelectionFeedbackGenerator().selectionChanged()
                             selectedEntity = SearchResult(
                                 id: team.id,
                                 name: team.name,
@@ -344,6 +402,7 @@ struct AddAlertView: View {
 
         guard viewModel.errorMessage == nil else { return }
 
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
         showSuccess = true
         try? await Task.sleep(for: .milliseconds(800))
         dismiss()

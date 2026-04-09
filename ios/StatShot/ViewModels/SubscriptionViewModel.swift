@@ -12,6 +12,9 @@ final class SubscriptionViewModel {
     var teams: [Team] = []
     var isLoadingTeams = false
 
+    // Trending state
+    var trendingPlayers: [TrendingPlayer] = []
+
     // Search state for AddAlertView
     var searchQuery = ""
     var searchResults: [SearchResult] = []
@@ -41,6 +44,14 @@ final class SubscriptionViewModel {
         } catch {
             teams = []
             errorMessage = error.localizedDescription
+        }
+    }
+
+    func loadTrending() async {
+        do {
+            trendingPlayers = try await APIService.shared.fetchTrending(league: selectedLeague.rawValue)
+        } catch {
+            trendingPlayers = []
         }
     }
 
