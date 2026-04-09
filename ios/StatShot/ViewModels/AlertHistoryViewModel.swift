@@ -10,10 +10,18 @@ final class AlertHistoryViewModel {
 
     func loadAlerts() async {
         isLoading = true
+        errorMessage = nil
         defer { isLoading = false }
 
-        // TODO: Fetch from Firestore via FirebaseService
-        // Free tier: last 7 days
-        // Premium: last 90 days
+        guard let userId = AuthService.shared.currentUserId else {
+            errorMessage = "Please sign in to view alert history."
+            return
+        }
+
+        do {
+            alerts = try await APIService.shared.getAlertHistory(userId: userId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }

@@ -34,7 +34,7 @@ struct SettingsView: View {
                 Button {
                     Task { await authViewModel.signInWithApple() }
                 } label: {
-                    Label("Sign in with Apple", systemImage: "apple.logo")
+                    Label("Sign In (Test Mode)", systemImage: "person.badge.key")
                 }
             }
         }

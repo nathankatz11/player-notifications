@@ -9,22 +9,30 @@ final class AuthViewModel {
     var isLoading = false
     var errorMessage: String?
 
+    func checkExistingAuth() {
+        isAuthenticated = AuthService.shared.isAuthenticated
+    }
+
+    /// Test-mode sign in: registers with a hardcoded email and simulator token.
+    /// Replace with real Sign in with Apple once Apple Developer setup is complete.
     func signInWithApple() async {
         isLoading = true
+        errorMessage = nil
         defer { isLoading = false }
 
-        // TODO: Firebase Auth — Sign in with Apple
-        // 1. Get Apple ID credential via ASAuthorizationController
-        // 2. Create Firebase credential from Apple token
-        // 3. Sign in with Firebase Auth
-        // 4. Fetch/create user doc in Firestore
-        // 5. Register FCM token
-
-        isAuthenticated = true
+        do {
+            try await AuthService.shared.register(
+                email: "test@statshot.app",
+                apnsToken: "simulator-token"
+            )
+            isAuthenticated = true
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func signOut() {
-        // TODO: Firebase Auth sign out
+        AuthService.shared.signOut()
         currentUser = nil
         isAuthenticated = false
     }

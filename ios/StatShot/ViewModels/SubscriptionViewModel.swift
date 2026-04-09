@@ -15,11 +15,17 @@ final class SubscriptionViewModel {
     var selectedLeague: League = .nba
 
     func loadSubscriptions() async {
+        guard let userId = AuthService.shared.currentUserId else { return }
+
         isLoading = true
+        errorMessage = nil
         defer { isLoading = false }
 
-        // TODO: Fetch from Firestore via FirebaseService
-        // subscriptions = try await FirebaseService.shared.getSubscriptions()
+        do {
+            subscriptions = try await APIService.shared.getSubscriptions(userId: userId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func searchEntities() async {
@@ -31,8 +37,14 @@ final class SubscriptionViewModel {
         isSearching = true
         defer { isSearching = false }
 
-        // TODO: Call backend searchEntity function
-        // searchResults = try await APIService.shared.search(query: searchQuery, league: selectedLeague)
+        do {
+            searchResults = try await APIService.shared.search(
+                query: searchQuery,
+                league: selectedLeague.rawValue
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func createSubscription(
@@ -43,16 +55,46 @@ final class SubscriptionViewModel {
         trigger: TriggerType,
         deliveryMethod: DeliveryMethod
     ) async {
-        // TODO: Call backend manageSubscription function
-        // Enforce free tier limit client-side too (3 max)
+        guard let userId = AuthService.shared.currentUserId else { return }
+
+        do {
+            let params = CreateSubscriptionParams(
+                userId: userId,
+                type: type.rawValue,
+                league: league.rawValue,
+                entityId: entityId,
+                entityName: entityName,
+                trigger: trigger.rawValue,
+                deliveryMethod: deliveryMethod.rawValue
+            )
+            _ = try await APIService.shared.createSubscription(params)
+            await loadSubscriptions()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func toggleSubscription(_ subscription: Subscription) async {
-        // TODO: Update subscription active state
+        do {
+            try await APIService.shared.updateSubscription(
+                id: subscription.id,
+                active: !subscription.active
+            )
+            if let index = subscriptions.firstIndex(where: { $0.id == subscription.id }) {
+                subscriptions[index].active.toggle()
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func deleteSubscription(_ subscription: Subscription) async {
-        // TODO: Deactivate subscription via backend
+        do {
+            try await APIService.shared.deleteSubscription(id: subscription.id)
+            subscriptions.removeAll { $0.id == subscription.id }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }
 

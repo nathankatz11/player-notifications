@@ -10,6 +10,7 @@
 		06264968D3316F56A46BB68D /* SubscriptionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 855EBAA154ED1451671F6AF0 /* SubscriptionViewModel.swift */; };
 		09F9924BF7F7B13F3A497550 /* Alert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF524FD5C57E6ABCBBC645C /* Alert.swift */; };
 		0EBFDDA345FB3F9D027ABAFA /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15064294B5EF2B7228B6B9A /* AuthService.swift */; };
+		102ACDFF54665C8DC08EC2C0 /* ScoreFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1D4945D4A5B7BD6053D0C6 /* ScoreFeedView.swift */; };
 		1F66B80B9C7BDD0017FD8258 /* StripeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80379A3686A24888760DC53 /* StripeService.swift */; };
 		3B2BB6A2871607EFD8D7549F /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 705DA812ED0439AAA1B9F568 /* PaywallView.swift */; };
 		3EE97FE9437D723EAB513CF7 /* Subscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1AC6F250B4C14E2EE831F01 /* Subscription.swift */; };
@@ -31,12 +32,13 @@
 		1D9279201DDF6F818D4D9960 /* AddAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAlertView.swift; sourceTree = "<group>"; };
 		26F8FF2BFE2401DF2A59D205 /* AlertHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertHistoryView.swift; sourceTree = "<group>"; };
 		43C805ABE74D556008DA9ED8 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		5673D5F0179304413C4A8F11 /* StatShot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StatShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5673D5F0179304413C4A8F11 /* StatShot.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = StatShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		705DA812ED0439AAA1B9F568 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		765BB5EAC4D67377DECF713C /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
 		79FE312C2B4909F302AEF8A3 /* AlertHistoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertHistoryViewModel.swift; sourceTree = "<group>"; };
 		855EBAA154ED1451671F6AF0 /* SubscriptionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionViewModel.swift; sourceTree = "<group>"; };
 		8BF524FD5C57E6ABCBBC645C /* Alert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Alert.swift; sourceTree = "<group>"; };
+		9F1D4945D4A5B7BD6053D0C6 /* ScoreFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreFeedView.swift; sourceTree = "<group>"; };
 		A15064294B5EF2B7228B6B9A /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		D16C9990E01908BD5FDC16E1 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		D1AC6F250B4C14E2EE831F01 /* Subscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subscription.swift; sourceTree = "<group>"; };
@@ -61,6 +63,7 @@
 				26F8FF2BFE2401DF2A59D205 /* AlertHistoryView.swift */,
 				43C805ABE74D556008DA9ED8 /* HomeView.swift */,
 				705DA812ED0439AAA1B9F568 /* PaywallView.swift */,
+				9F1D4945D4A5B7BD6053D0C6 /* ScoreFeedView.swift */,
 				F7F7E0D1BFC5F36CC639EF5F /* SettingsView.swift */,
 			);
 			path = Views;
@@ -153,6 +156,8 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+				};
 			};
 			buildConfigurationList = 3DA2BE40115E154B5A7FD592 /* Build configuration list for PBXProject "StatShot" */;
 			developmentRegion = en;
@@ -188,6 +193,7 @@
 				5950868DC9D17F8588737DEF /* HomeView.swift in Sources */,
 				E1ED74F6C59FCC0C66C425B5 /* NotificationService.swift in Sources */,
 				3B2BB6A2871607EFD8D7549F /* PaywallView.swift in Sources */,
+				102ACDFF54665C8DC08EC2C0 /* ScoreFeedView.swift in Sources */,
 				96FF00524427D90591D2C6EB /* SettingsView.swift in Sources */,
 				535684E6D6CF0926AF60042A /* StatShotApp.swift in Sources */,
 				1F66B80B9C7BDD0017FD8258 /* StripeService.swift in Sources */,
@@ -328,7 +334,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = LTMRG8UV3U;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_GENERATION_MODE = GeneratedFile;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -350,7 +355,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = LTMRG8UV3U;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_GENERATION_MODE = GeneratedFile;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

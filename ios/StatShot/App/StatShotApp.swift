@@ -9,6 +9,7 @@ struct StatShotApp: App {
             ContentView()
                 .environment(authViewModel)
                 .onAppear {
+                    authViewModel.checkExistingAuth()
                     NotificationService.shared.requestAuthorization()
                 }
         }
@@ -20,6 +21,11 @@ struct ContentView: View {
 
     var body: some View {
         TabView {
+            ScoreFeedView()
+                .tabItem {
+                    Label("Scores", systemImage: "sportscourt.fill")
+                }
+
             HomeView()
                 .tabItem {
                     Label("Alerts", systemImage: "bell.fill")
