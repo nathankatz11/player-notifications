@@ -2,29 +2,34 @@ import SwiftUI
 
 // MARK: - Models
 
+struct ScoresResponse: Codable {
+    let league: String
+    let games: [LiveGame]
+}
+
 struct LiveGame: Codable, Identifiable {
     let id: String
     let name: String
     let status: String
-    let clock: String
-    let period: Int
-    let competitors: [Competitor]
+    let clock: String?
+    let period: Int?
+    let competitors: [Competitor]?
 
     var homeTeam: Competitor? {
-        competitors.first { $0.homeAway == "home" }
+        competitors?.first { $0.homeAway == "home" }
     }
 
     var awayTeam: Competitor? {
-        competitors.first { $0.homeAway == "away" }
+        competitors?.first { $0.homeAway == "away" }
     }
 
     var statusText: String {
         switch status {
         case "in":
-            if clock.isEmpty {
-                return "Live - P\(period)"
+            if let clock, !clock.isEmpty, let period {
+                return "\(clock) - P\(period)"
             }
-            return "\(clock) - P\(period)"
+            return "Live"
         case "post":
             return "Final"
         case "pre":
@@ -64,8 +69,8 @@ final class ScoreFeedViewModel {
         do {
             let url = URL(string: "https://backend-tau-ten-58.vercel.app/api/scores/\(selectedLeague.rawValue)")!
             let (data, _) = try await URLSession.shared.data(from: url)
-            let decoded = try JSONDecoder().decode([LiveGame].self, from: data)
-            games = decoded
+            let decoded = try JSONDecoder().decode(ScoresResponse.self, from: data)
+            games = decoded.games
         } catch {
             errorMessage = error.localizedDescription
             games = []

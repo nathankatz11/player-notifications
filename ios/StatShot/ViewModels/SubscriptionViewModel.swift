@@ -71,7 +71,10 @@ final class SubscriptionViewModel {
         trigger: TriggerType,
         deliveryMethod: DeliveryMethod
     ) async {
-        guard let userId = AuthService.shared.currentUserId else { return }
+        guard let userId = AuthService.shared.currentUserId else {
+            errorMessage = "Please sign in first (Settings → Sign In)"
+            return
+        }
 
         do {
             let params = CreateSubscriptionParams(
