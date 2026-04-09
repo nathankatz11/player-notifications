@@ -79,6 +79,35 @@ export async function fetchGameSummary(league: League, gameId: string): Promise<
   return [];
 }
 
+export interface ESPNTeam {
+  id: string;
+  name: string;
+  abbreviation: string;
+  logoUrl: string | null;
+}
+
+/** Fetch all teams for a league */
+export async function fetchTeams(league: League): Promise<ESPNTeam[]> {
+  const path = LEAGUE_PATHS[league];
+  const limit = league === "ncaafb" || league === "ncaamb" ? "?limit=200" : "";
+  const res = await fetch(`${ESPN_BASE}/${path}/teams${limit}`);
+
+  if (!res.ok) {
+    throw new Error(`ESPN teams error: ${res.status} for ${league}`);
+  }
+
+  const data = await res.json();
+  const teamsRaw: Array<{ team: { id: string; displayName: string; abbreviation: string; logos?: Array<{ href: string }> } }> =
+    data.sports?.[0]?.leagues?.[0]?.teams ?? [];
+
+  return teamsRaw.map(({ team }) => ({
+    id: team.id,
+    name: team.displayName,
+    abbreviation: team.abbreviation,
+    logoUrl: team.logos?.[0]?.href ?? null,
+  }));
+}
+
 /** Search ESPN for players/teams */
 export async function searchEntities(
   query: string,

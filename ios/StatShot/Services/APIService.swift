@@ -9,7 +9,7 @@ final class APIService: Sendable {
     #if DEBUG
     private let baseURL = "http://localhost:3000"
     #else
-    private let baseURL = "https://your-app.vercel.app"
+    private let baseURL = "https://backend-tau-ten-58.vercel.app"
     #endif
 
     private nonisolated(unsafe) let decoder: JSONDecoder = {
@@ -27,6 +27,14 @@ final class APIService: Sendable {
         let data = try await post("/api/register", body: body)
         let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         return result?["id"] as? String ?? ""
+    }
+
+    // MARK: - Teams
+
+    func fetchTeams(league: String) async throws -> [Team] {
+        let data = try await get("/api/teams/\(league)")
+        let response = try decoder.decode(TeamsResponse.self, from: data)
+        return response.teams
     }
 
     // MARK: - Scores
@@ -148,6 +156,17 @@ struct SubscriptionsResponse: Decodable {
 
 struct AlertsResponse: Decodable {
     let alerts: [AlertItem]
+}
+
+struct Team: Codable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let abbreviation: String
+    let logoUrl: String?
+}
+
+struct TeamsResponse: Decodable, Sendable {
+    let teams: [Team]
 }
 
 enum APIError: LocalizedError {

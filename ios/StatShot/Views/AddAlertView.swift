@@ -13,6 +13,7 @@ struct AddAlertView: View {
         NavigationStack {
             Form {
                 leagueSection
+                teamPickerSection
                 searchSection
                 triggerSection
                 deliverySection
@@ -24,6 +25,14 @@ struct AddAlertView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
+            }
+            .task {
+                await viewModel.loadTeams()
+            }
+            .onChange(of: selectedLeague) {
+                viewModel.selectedLeague = selectedLeague
+                selectedEntity = nil
+                Task { await viewModel.loadTeams() }
             }
         }
     }
@@ -40,12 +49,53 @@ struct AddAlertView: View {
         }
     }
 
+    private var teamPickerSection: some View {
+        Section("Select a Team") {
+            if viewModel.isLoadingTeams {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                    Spacer()
+                }
+            } else if viewModel.teams.isEmpty {
+                Text("No teams available")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(viewModel.teams) { team in
+                    Button {
+                        selectedEntity = SearchResult(
+                            id: team.id,
+                            name: team.name,
+                            type: "team",
+                            imageUrl: team.logoUrl
+                        )
+                        viewModel.searchQuery = ""
+                        viewModel.searchResults = []
+                    } label: {
+                        HStack {
+                            Text(team.name)
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Text(team.abbreviation)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if selectedEntity?.id == team.id && selectedEntity?.type == "team" {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private var searchSection: some View {
-        Section("Player or Team") {
+        Section("Or Search Players") {
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Search players or teams...", text: $viewModel.searchQuery)
+                TextField("Search players...", text: $viewModel.searchQuery)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
             }
@@ -65,6 +115,7 @@ struct AddAlertView: View {
                 } label: {
                     HStack {
                         Text(result.name)
+                            .foregroundStyle(.primary)
                         Spacer()
                         Text(result.type)
                             .font(.caption)
@@ -79,6 +130,10 @@ struct AddAlertView: View {
                         .foregroundStyle(.green)
                     Text(entity.name)
                         .fontWeight(.semibold)
+                    Spacer()
+                    Text(entity.type)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -139,8 +194,10 @@ struct AddAlertView: View {
     private func createAlert() async {
         guard let entity = selectedEntity, let trigger = selectedTrigger else { return }
 
+        let subscriptionType: SubscriptionType = entity.type == "team" ? .teamEvent : .playerStat
+
         await viewModel.createSubscription(
-            type: .playerStat,
+            type: subscriptionType,
             league: selectedLeague,
             entityId: entity.id,
             entityName: entity.name,

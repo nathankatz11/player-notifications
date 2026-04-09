@@ -8,6 +8,10 @@ final class SubscriptionViewModel {
     var isLoading = false
     var errorMessage: String?
 
+    // Teams state
+    var teams: [Team] = []
+    var isLoadingTeams = false
+
     // Search state for AddAlertView
     var searchQuery = ""
     var searchResults: [SearchResult] = []
@@ -24,6 +28,18 @@ final class SubscriptionViewModel {
         do {
             subscriptions = try await APIService.shared.getSubscriptions(userId: userId)
         } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func loadTeams() async {
+        isLoadingTeams = true
+        defer { isLoadingTeams = false }
+
+        do {
+            teams = try await APIService.shared.fetchTeams(league: selectedLeague.rawValue)
+        } catch {
+            teams = []
             errorMessage = error.localizedDescription
         }
     }
