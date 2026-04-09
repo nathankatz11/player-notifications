@@ -26,6 +26,11 @@ struct AddAlertView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
+            .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
+                Button("OK") { viewModel.errorMessage = nil }
+            } message: {
+                Text(viewModel.errorMessage ?? "")
+            }
             .task {
                 await viewModel.loadTeams()
             }
@@ -72,7 +77,19 @@ struct AddAlertView: View {
                         viewModel.searchQuery = ""
                         viewModel.searchResults = []
                     } label: {
-                        HStack {
+                        HStack(spacing: 10) {
+                            AsyncImage(url: team.logoUrl.flatMap { URL(string: $0) }) { image in
+                                image
+                                    .resizable()
+                                    .scaledToFit()
+                            } placeholder: {
+                                Text(team.abbreviation)
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(width: 28, height: 28)
+                            .clipShape(Circle())
+
                             Text(team.name)
                                 .foregroundStyle(.primary)
                             Spacer()

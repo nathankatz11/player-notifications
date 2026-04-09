@@ -22,6 +22,9 @@ struct AlertHistoryView: View {
             .task {
                 await viewModel.loadAlerts()
             }
+            .refreshable {
+                await viewModel.loadAlerts()
+            }
         }
     }
 

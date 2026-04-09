@@ -61,6 +61,12 @@ final class ScoreFeedViewModel {
     var selectedLeague: League = .nba
     var errorMessage: String?
 
+    private var autoRefreshTask: Task<Void, Never>?
+
+    var hasLiveGames: Bool {
+        games.contains { $0.isLive }
+    }
+
     func loadScores() async {
         isLoading = true
         errorMessage = nil
@@ -75,6 +81,25 @@ final class ScoreFeedViewModel {
             errorMessage = error.localizedDescription
             games = []
         }
+    }
+
+    func startAutoRefreshIfNeeded() {
+        stopAutoRefresh()
+        guard hasLiveGames else { return }
+
+        autoRefreshTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                guard !Task.isCancelled else { break }
+                await loadScores()
+                if !hasLiveGames { break }
+            }
+        }
+    }
+
+    func stopAutoRefresh() {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = nil
     }
 }
 
@@ -117,9 +142,14 @@ struct ScoreFeedView: View {
             .navigationTitle("Scores")
             .task(id: viewModel.selectedLeague) {
                 await viewModel.loadScores()
+                viewModel.startAutoRefreshIfNeeded()
             }
             .refreshable {
                 await viewModel.loadScores()
+                viewModel.startAutoRefreshIfNeeded()
+            }
+            .onDisappear {
+                viewModel.stopAutoRefresh()
             }
         }
     }
@@ -137,7 +167,7 @@ struct ScoreFeedView: View {
 
     private var gamesList: some View {
         List(viewModel.games) { game in
-            GameRow(game: game)
+            GameRow(game: game, league: viewModel.selectedLeague)
         }
         .listStyle(.plain)
     }
@@ -147,6 +177,7 @@ struct ScoreFeedView: View {
 
 struct GameRow: View {
     let game: LiveGame
+    let league: League
 
     var body: some View {
         VStack(spacing: 8) {
@@ -177,8 +208,25 @@ struct GameRow: View {
         .padding(.vertical, 6)
     }
 
+    private func teamLogoURL(abbreviation: String) -> URL? {
+        let abbr = abbreviation.lowercased()
+        return URL(string: "https://a.espncdn.com/i/teamlogos/\(league.espnSport)/500/\(abbr).png")
+    }
+
     private func teamColumn(abbreviation: String, name: String, score: String) -> some View {
         VStack(spacing: 4) {
+            AsyncImage(url: teamLogoURL(abbreviation: abbreviation)) { image in
+                image
+                    .resizable()
+                    .scaledToFit()
+            } placeholder: {
+                Text(abbreviation)
+                    .font(.caption2.bold())
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 32, height: 32)
+            .clipShape(Circle())
+
             Text(abbreviation)
                 .font(.headline)
             Text(score)

@@ -29,6 +29,18 @@ enum League: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    var espnSport: String {
+        switch self {
+        case .nba: "nba"
+        case .nfl: "nfl"
+        case .nhl: "nhl"
+        case .mlb: "mlb"
+        case .ncaafb: "ncaa"
+        case .ncaamb: "ncaa"
+        case .mls: "soccer"
+        }
+    }
+
     var triggers: [TriggerType] {
         switch self {
         case .nba: [.pointsScored, .turnover, .technicalFoul, .ejection, .gameWinner, .teamWin, .teamLoss]

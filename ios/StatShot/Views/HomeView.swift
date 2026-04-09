@@ -31,6 +31,9 @@ struct HomeView: View {
             .task {
                 await viewModel.loadSubscriptions()
             }
+            .refreshable {
+                await viewModel.loadSubscriptions()
+            }
         }
     }
 
@@ -67,9 +70,10 @@ struct SubscriptionRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: subscription.league.icon)
-                .font(.title2)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 40)
+                .font(.body)
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(Color.accentColor, in: Circle())
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(subscription.entityName)
