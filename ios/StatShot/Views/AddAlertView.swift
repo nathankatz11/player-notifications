@@ -68,6 +68,10 @@ struct AddAlertView: View {
             .onChange(of: selectedLeague) {
                 viewModel.selectedLeague = selectedLeague
                 selectedEntity = nil
+                selectedTrigger = nil
+                teamFilter = ""
+                viewModel.searchQuery = ""
+                viewModel.searchResults = []
                 Task {
                     await withTaskGroup(of: Void.self) { group in
                         group.addTask { await self.viewModel.loadTeams() }
@@ -96,6 +100,18 @@ struct AddAlertView: View {
         return viewModel.teams.filter {
             $0.name.lowercased().contains(query) ||
             $0.abbreviation.lowercased().contains(query)
+        }
+    }
+
+    private var searchPlaceholder: String {
+        switch selectedLeague {
+        case .nba: "Try: LeBron James, Stephen Curry, Jayson Tatum..."
+        case .nfl: "Try: Patrick Mahomes, Josh Allen, Derrick Henry..."
+        case .nhl: "Try: Connor McDavid, Alex Ovechkin, Auston Matthews..."
+        case .mlb: "Try: Aaron Judge, Shohei Ohtani, Mike Trout..."
+        case .ncaafb: "Try: Carson Beck, Jalen Milroe, Shedeur Sanders..."
+        case .ncaamb: "Try: Cooper Flagg, Dylan Harper, Ace Bailey..."
+        case .mls: "Try: Lionel Messi, Lorenzo Insigne, Riqui Puig..."
         }
     }
 
@@ -183,7 +199,7 @@ struct AddAlertView: View {
             }
 
             if viewModel.searchQuery.isEmpty && !viewModel.isSearching && viewModel.searchResults.isEmpty && selectedEntity == nil {
-                Text("Try: LeBron James, Patrick Mahomes, Connor McDavid...")
+                Text(searchPlaceholder)
                     .font(.subheadline)
                     .foregroundStyle(.tertiary)
             }
@@ -251,7 +267,7 @@ struct AddAlertView: View {
                 .padding(.vertical, 2)
             }
         } header: {
-            Text("Find a Player")
+            Text("Find a \(selectedLeague.displayName) Player")
         }
     }
 
