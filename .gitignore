@@ -1,0 +1,33 @@
+# === Node / Firebase Functions ===
+node_modules/
+functions/lib/
+functions/node_modules/
+.firebase/
+
+# === Swift / Xcode ===
+ios/StatShot.xcodeproj/xcuserdata/
+ios/StatShot.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.hmap
+*.swp
+
+# === Environment / Secrets ===
+.env
+.env.local
+*.p8
+*.p12
+GoogleService-Info.plist
+functions/.secret.local
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === IDE ===
+.vscode/
+.idea/

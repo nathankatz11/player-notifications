@@ -1,0 +1,28 @@
+{
+  "name": "statshot-functions",
+  "version": "1.0.0",
+  "description": "StatShot Firebase Cloud Functions — sports alert engine",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "deploy": "firebase deploy --only functions",
+    "lint": "eslint src/"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^5.0.0",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/node-fetch": "^2.6.11",
+    "typescript": "^5.4.0",
+    "eslint": "^8.57.0"
+  },
+  "private": true
+}
