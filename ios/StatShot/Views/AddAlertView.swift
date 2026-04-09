@@ -9,10 +9,8 @@ struct AddAlertView: View {
     @State private var selectedLeague: League = .nba
     @State private var selectedTrigger: TriggerType?
     @State private var selectedEntity: SearchResult?
-    @State private var deliveryMethod: DeliveryMethod = .push
     @State private var teamFilter = ""
     @State private var showSuccess = false
-    @State private var isTeamSectionExpanded = false
 
     init(initialLeague: League? = nil) {
         self.initialLeague = initialLeague
@@ -25,18 +23,25 @@ struct AddAlertView: View {
         NavigationStack {
             Form {
                 leagueSection
-                trendingSection
+                if !viewModel.trendingPlayers.isEmpty && selectedEntity == nil && viewModel.searchQuery.isEmpty {
+                    trendingSection
+                }
                 playerSearchSection
                 teamPickerSection
                 triggerSection
-                deliverySection
-                createSection
             }
             .navigationTitle("New Alert")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task { await createAlert() }
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(selectedEntity == nil || selectedTrigger == nil)
                 }
             }
             .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
@@ -117,62 +122,59 @@ struct AddAlertView: View {
 
     // MARK: - Trending
 
-    @ViewBuilder
     private var trendingSection: some View {
-        if !viewModel.trendingPlayers.isEmpty && selectedEntity == nil {
-            Section("Trending Now") {
-                ForEach(viewModel.trendingPlayers) { player in
-                    Button {
-                        selectedEntity = SearchResult(
-                            id: player.id,
-                            name: player.name,
-                            type: "player",
-                            imageUrl: nil
-                        )
-                        viewModel.searchQuery = player.name
-                        viewModel.searchResults = []
-                    } label: {
-                        HStack(spacing: 10) {
-                            if let url = League.playerHeadshotURL(espnId: player.id, league: selectedLeague, size: 36) {
-                                AsyncImage(url: url) { phase in
-                                    switch phase {
-                                    case .success(let image):
-                                        image
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: 36, height: 36)
-                                            .clipShape(Circle())
-                                    default:
-                                        Image(systemName: "person.fill")
-                                            .foregroundStyle(Color.accentColor)
-                                            .frame(width: 36, height: 36)
-                                    }
+        Section("Trending Now") {
+            ForEach(viewModel.trendingPlayers) { player in
+                Button {
+                    selectedEntity = SearchResult(
+                        id: player.id,
+                        name: player.name,
+                        type: "player",
+                        imageUrl: nil
+                    )
+                    viewModel.searchQuery = player.name
+                    viewModel.searchResults = []
+                } label: {
+                    HStack(spacing: 10) {
+                        if let url = League.playerHeadshotURL(espnId: player.id, league: selectedLeague, size: 36) {
+                            AsyncImage(url: url) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 36, height: 36)
+                                        .clipShape(Circle())
+                                default:
+                                    Image(systemName: "person.fill")
+                                        .foregroundStyle(Color.accentColor)
+                                        .frame(width: 36, height: 36)
                                 }
-                            } else {
-                                Image(systemName: "person.fill")
-                                    .foregroundStyle(Color.accentColor)
-                                    .frame(width: 36, height: 36)
                             }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(player.name)
-                                    .font(.body.weight(.bold))
-                                    .foregroundStyle(.primary)
-                                Text(player.team)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            HStack(spacing: 4) {
-                                Text("\u{1F525}")
-                                    .font(.caption)
-                                Text("\(player.plays)")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.secondary.opacity(0.12), in: Capsule())
+                        } else {
+                            Image(systemName: "person.fill")
+                                .foregroundStyle(Color.accentColor)
+                                .frame(width: 36, height: 36)
                         }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(player.name)
+                                .font(.body.weight(.bold))
+                                .foregroundStyle(.primary)
+                            Text(player.team)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        HStack(spacing: 4) {
+                            Text("\u{1F525}")
+                                .font(.caption)
+                            Text("\(player.plays)")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.secondary.opacity(0.12), in: Capsule())
                     }
                 }
             }
@@ -303,38 +305,37 @@ struct AddAlertView: View {
         }
     }
 
-    // MARK: - Team Picker (Secondary, collapsed)
+    // MARK: - Team Picker
 
     private var teamPickerSection: some View {
-        Section {
-            DisclosureGroup("Or Pick a Team", isExpanded: $isTeamSectionExpanded) {
-                if viewModel.isLoadingTeams {
-                    HStack {
-                        Spacer()
-                        ProgressView()
-                        Spacer()
-                    }
-                } else if viewModel.teams.isEmpty {
-                    Text("No teams available")
+        Section("Or Pick a Team") {
+            if viewModel.isLoadingTeams {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                    Spacer()
+                }
+            } else if viewModel.teams.isEmpty {
+                Text("No teams available")
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack {
+                    Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
-                } else {
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
-                        TextField("Filter teams...", text: $teamFilter)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                        if !teamFilter.isEmpty {
-                            Button {
-                                teamFilter = ""
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
+                    TextField("Filter teams...", text: $teamFilter)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    if !teamFilter.isEmpty {
+                        Button {
+                            teamFilter = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
                         }
+                        .buttonStyle(.plain)
                     }
-                    ForEach(filteredTeams) { team in
+                }
+                ForEach(filteredTeams) { team in
                         Button {
                             UISelectionFeedbackGenerator().selectionChanged()
                             selectedEntity = SearchResult(
@@ -375,7 +376,7 @@ struct AddAlertView: View {
                 }
             }
         }
-    }
+
 
     private var triggerSection: some View {
         Section("Alert When") {
@@ -403,19 +404,7 @@ struct AddAlertView: View {
     }
 
     private var deliverySection: some View {
-        Section("Delivery") {
-            Picker("Method", selection: $deliveryMethod) {
-                ForEach(DeliveryMethod.allCases) { method in
-                    Text(method.displayName).tag(method)
-                }
-            }
-
-            if deliveryMethod != .push {
-                Text("SMS requires a Premium subscription")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-        }
+        EmptyView()
     }
 
     private var createSection: some View {
@@ -445,7 +434,7 @@ struct AddAlertView: View {
             entityId: entity.id,
             entityName: entity.name,
             trigger: trigger,
-            deliveryMethod: deliveryMethod
+            deliveryMethod: .push
         )
 
         guard viewModel.errorMessage == nil else { return }

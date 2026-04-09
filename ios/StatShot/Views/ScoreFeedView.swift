@@ -160,14 +160,38 @@ struct ScoreFeedView: View {
     }
 
     private var leaguePicker: some View {
-        Picker("League", selection: $viewModel.selectedLeague) {
-            ForEach(League.allCases) { league in
-                Text(league.shortName).tag(league)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(League.allCases) { league in
+                    Button {
+                        viewModel.selectedLeague = league
+                    } label: {
+                        Text(league.shortName)
+                            .font(.subheadline.bold())
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(
+                                viewModel.selectedLeague == league
+                                    ? league.color
+                                    : Color.clear,
+                                in: Capsule()
+                            )
+                            .foregroundStyle(
+                                viewModel.selectedLeague == league
+                                    ? .white
+                                    : .secondary
+                            )
+                            .overlay(
+                                viewModel.selectedLeague == league
+                                    ? nil
+                                    : Capsule().strokeBorder(.secondary.opacity(0.3), lineWidth: 1)
+                            )
+                    }
+                }
             }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
         }
-        .pickerStyle(.segmented)
-        .padding(.horizontal)
-        .padding(.vertical, 8)
     }
 
     private var gamesList: some View {

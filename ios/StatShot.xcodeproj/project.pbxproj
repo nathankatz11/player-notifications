@@ -13,12 +13,15 @@
 		0EBFDDA345FB3F9D027ABAFA /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15064294B5EF2B7228B6B9A /* AuthService.swift */; };
 		102ACDFF54665C8DC08EC2C0 /* ScoreFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1D4945D4A5B7BD6053D0C6 /* ScoreFeedView.swift */; };
 		1F66B80B9C7BDD0017FD8258 /* StripeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80379A3686A24888760DC53 /* StripeService.swift */; };
+		2EDD88AFF93160C9DEE92BB5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0765D72796FC27EBDBD95CE3 /* Assets.xcassets */; };
 		3B2BB6A2871607EFD8D7549F /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 705DA812ED0439AAA1B9F568 /* PaywallView.swift */; };
 		3EE97FE9437D723EAB513CF7 /* Subscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1AC6F250B4C14E2EE831F01 /* Subscription.swift */; };
+		3F8D4CE233FEBEA315B524EF /* AppIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB35CB801B3ABC38B7A53D6D /* AppIconView.swift */; };
 		535684E6D6CF0926AF60042A /* StatShotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E24E60A6B44F65A3B15913F3 /* StatShotApp.swift */; };
 		5950868DC9D17F8588737DEF /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43C805ABE74D556008DA9ED8 /* HomeView.swift */; };
 		60DAE31B5BA20E0724E6397F /* AddAlertView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D9279201DDF6F818D4D9960 /* AddAlertView.swift */; };
 		7F3937E236EFB22BF5260286 /* AlertHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26F8FF2BFE2401DF2A59D205 /* AlertHistoryView.swift */; };
+		811E343DEAC7865293F0152A /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 037DAC762305A8D363A4A0C6 /* OnboardingView.swift */; };
 		96FF00524427D90591D2C6EB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F7E0D1BFC5F36CC639EF5F /* SettingsView.swift */; };
 		C5E773CBCEA6BB14304F93E8 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E1B6B6B98A27BAB655073EC /* AuthViewModel.swift */; };
 		C9F6AA794CAA5FA8F36E47F7 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 765BB5EAC4D67377DECF713C /* APIService.swift */; };
@@ -28,6 +31,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		037DAC762305A8D363A4A0C6 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		0765D72796FC27EBDBD95CE3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0B2CD9BE475CE2AB13E3CD18 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
 		0E1B6B6B98A27BAB655073EC /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		1D9279201DDF6F818D4D9960 /* AddAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAlertView.swift; sourceTree = "<group>"; };
@@ -47,6 +52,7 @@
 		D80379A3686A24888760DC53 /* StripeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripeService.swift; sourceTree = "<group>"; };
 		E24E60A6B44F65A3B15913F3 /* StatShotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatShotApp.swift; sourceTree = "<group>"; };
 		F7F7E0D1BFC5F36CC639EF5F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		FB35CB801B3ABC38B7A53D6D /* AppIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -64,7 +70,9 @@
 				1D9279201DDF6F818D4D9960 /* AddAlertView.swift */,
 				D56876D8FB3B59A941CD3929 /* AlertDetailView.swift */,
 				26F8FF2BFE2401DF2A59D205 /* AlertHistoryView.swift */,
+				FB35CB801B3ABC38B7A53D6D /* AppIconView.swift */,
 				43C805ABE74D556008DA9ED8 /* HomeView.swift */,
+				037DAC762305A8D363A4A0C6 /* OnboardingView.swift */,
 				705DA812ED0439AAA1B9F568 /* PaywallView.swift */,
 				9F1D4945D4A5B7BD6053D0C6 /* ScoreFeedView.swift */,
 				F7F7E0D1BFC5F36CC639EF5F /* SettingsView.swift */,
@@ -75,6 +83,7 @@
 		5957EFA45F18779C6B9B51FC /* StatShot */ = {
 			isa = PBXGroup;
 			children = (
+				0765D72796FC27EBDBD95CE3 /* Assets.xcassets */,
 				DD5F1AC698769D67AA0486F3 /* App */,
 				61371EA024FA3C37B0881841 /* Models */,
 				F082A751062F7E918E4F44E6 /* Services */,
@@ -139,6 +148,7 @@
 			buildConfigurationList = 13505740F9774B9B23C52EFD /* Build configuration list for PBXNativeTarget "StatShot" */;
 			buildPhases = (
 				B44EB21DC73FF2C6D2AF19F0 /* Sources */,
+				76015653D7AD21636851E2D2 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -181,6 +191,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		76015653D7AD21636851E2D2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2EDD88AFF93160C9DEE92BB5 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		B44EB21DC73FF2C6D2AF19F0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -192,10 +213,12 @@
 				04E9AF5997BED8F184F0EB05 /* AlertDetailView.swift in Sources */,
 				7F3937E236EFB22BF5260286 /* AlertHistoryView.swift in Sources */,
 				DA3F97751FD3975F5E956433 /* AlertHistoryViewModel.swift in Sources */,
+				3F8D4CE233FEBEA315B524EF /* AppIconView.swift in Sources */,
 				0EBFDDA345FB3F9D027ABAFA /* AuthService.swift in Sources */,
 				C5E773CBCEA6BB14304F93E8 /* AuthViewModel.swift in Sources */,
 				5950868DC9D17F8588737DEF /* HomeView.swift in Sources */,
 				E1ED74F6C59FCC0C66C425B5 /* NotificationService.swift in Sources */,
+				811E343DEAC7865293F0152A /* OnboardingView.swift in Sources */,
 				3B2BB6A2871607EFD8D7549F /* PaywallView.swift in Sources */,
 				102ACDFF54665C8DC08EC2C0 /* ScoreFeedView.swift in Sources */,
 				96FF00524427D90591D2C6EB /* SettingsView.swift in Sources */,
@@ -337,6 +360,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_GENERATION_MODE = GeneratedFile;
@@ -358,6 +382,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_GENERATION_MODE = GeneratedFile;
