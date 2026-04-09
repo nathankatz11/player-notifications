@@ -86,7 +86,7 @@ struct AddAlertView: View {
 
     private var triggerSection: some View {
         Section("Alert When") {
-            ForEach(selectedLeague.triggers) { trigger in
+            ForEach(selectedLeague.triggers, id: \.self) { trigger in
                 Button {
                     selectedTrigger = trigger
                 } label: {
@@ -96,7 +96,7 @@ struct AddAlertView: View {
                         Spacer()
                         if selectedTrigger == trigger {
                             Image(systemName: "checkmark")
-                                .foregroundStyle(.accent)
+                                .foregroundStyle(Color.accentColor)
                         }
                     }
                 }

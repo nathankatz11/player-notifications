@@ -44,45 +44,35 @@ struct PaywallView: View {
 
     private var featuresComparison: some View {
         VStack(spacing: 12) {
-            featureRow("Unlimited alerts", free: "3 max", premium: "Unlimited")
-            featureRow("Push notifications", free: true, premium: true)
-            featureRow("SMS alerts", free: false, premium: true)
-            featureRow("Alert history", free: "7 days", premium: "90 days")
-            featureRow("All sports & triggers", free: true, premium: true)
+            featureRow("Unlimited alerts", freeText: "3 max", premiumText: "Unlimited")
+            featureRow("Push notifications", freeCheck: true, premiumCheck: true)
+            featureRow("SMS alerts", freeCheck: false, premiumCheck: true)
+            featureRow("Alert history", freeText: "7 days", premiumText: "90 days")
+            featureRow("All sports & triggers", freeCheck: true, premiumCheck: true)
         }
         .padding()
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 
-    private func featureRow(_ feature: String, free: Any, premium: Any) -> some View {
+    private func featureRow(_ feature: String, freeText: String, premiumText: String) -> some View {
         HStack {
-            Text(feature)
-                .font(.subheadline)
-
+            Text(feature).font(.subheadline)
             Spacer()
+            Text(freeText).foregroundStyle(.secondary).frame(width: 70)
+            Text(premiumText).foregroundStyle(.tint).fontWeight(.medium).frame(width: 70)
+        }
+    }
 
-            Group {
-                if let boolVal = free as? Bool {
-                    Image(systemName: boolVal ? "checkmark" : "xmark")
-                        .foregroundStyle(boolVal ? .green : .red)
-                } else {
-                    Text(String(describing: free))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: 70)
-
-            Group {
-                if let boolVal = premium as? Bool {
-                    Image(systemName: boolVal ? "checkmark" : "xmark")
-                        .foregroundStyle(boolVal ? .green : .red)
-                } else {
-                    Text(String(describing: premium))
-                        .foregroundStyle(.accent)
-                        .fontWeight(.medium)
-                }
-            }
-            .frame(width: 70)
+    private func featureRow(_ feature: String, freeCheck: Bool, premiumCheck: Bool) -> some View {
+        HStack {
+            Text(feature).font(.subheadline)
+            Spacer()
+            Image(systemName: freeCheck ? "checkmark" : "xmark")
+                .foregroundStyle(freeCheck ? .green : .red)
+                .frame(width: 70)
+            Image(systemName: premiumCheck ? "checkmark" : "xmark")
+                .foregroundStyle(premiumCheck ? .green : .red)
+                .frame(width: 70)
         }
     }
 
@@ -101,7 +91,7 @@ struct PaywallView: View {
             }
             .frame(maxWidth: .infinity)
             .padding()
-            .background(.accent, in: RoundedRectangle(cornerRadius: 14))
+            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 14))
             .foregroundStyle(.white)
         }
         .disabled(isPurchasing)

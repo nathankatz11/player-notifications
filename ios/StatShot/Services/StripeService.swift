@@ -2,7 +2,7 @@ import Foundation
 
 /// Handles Stripe payment operations for the premium subscription.
 /// TODO: Import StripePaymentSheet once Stripe iOS SDK is added via SPM.
-final class StripeService {
+final class StripeService: Sendable {
     static let shared = StripeService()
 
     private init() {}

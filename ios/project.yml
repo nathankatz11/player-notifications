@@ -21,21 +21,16 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.statshot.app
+        GENERATE_INFOPLIST_FILE: true
         INFOPLIST_GENERATION_MODE: GeneratedFile
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
     # dependencies:
-    #   - package: FirebaseAuth
-    #   - package: FirebaseFirestore
-    #   - package: FirebaseMessaging
     #   - package: StripePaymentSheet
 
 # packages:
-#   firebase-ios-sdk:
-#     url: https://github.com/firebase/firebase-ios-sdk.git
-#     version: 11.0.0
 #   stripe-ios:
 #     url: https://github.com/stripe/stripe-ios.git
 #     version: 24.0.0

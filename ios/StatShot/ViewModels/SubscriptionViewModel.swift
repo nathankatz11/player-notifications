@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+@MainActor
 @Observable
 final class SubscriptionViewModel {
     var subscriptions: [Subscription] = []
@@ -55,10 +56,9 @@ final class SubscriptionViewModel {
     }
 }
 
-struct SearchResult: Identifiable {
+struct SearchResult: Codable, Identifiable, Sendable {
     let id: String
     let name: String
     let type: String // "player" or "team"
-    let league: String
     let imageUrl: String?
 }

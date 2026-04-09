@@ -1,0 +1,165 @@
+import Foundation
+
+/// Central API client for the Vercel-hosted StatShot backend.
+/// All endpoints return JSON and use standard HTTP methods.
+final class APIService: Sendable {
+    static let shared = APIService()
+
+    // TODO: Set to your Vercel deployment URL
+    #if DEBUG
+    private let baseURL = "http://localhost:3000"
+    #else
+    private let baseURL = "https://your-app.vercel.app"
+    #endif
+
+    private nonisolated(unsafe) let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .iso8601
+        return d
+    }()
+
+    private init() {}
+
+    // MARK: - Registration
+
+    func register(email: String, apnsToken: String) async throws -> String {
+        let body: [String: String] = ["email": email, "apnsToken": apnsToken]
+        let data = try await post("/api/register", body: body)
+        let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        return result?["id"] as? String ?? ""
+    }
+
+    // MARK: - Scores
+
+    func fetchScores(league: String? = nil) async throws -> Data {
+        if let league {
+            return try await get("/api/scores/\(league)")
+        }
+        return try await get("/api/scores")
+    }
+
+    // MARK: - Search
+
+    func search(query: String, league: String? = nil) async throws -> [SearchResult] {
+        var path = "/api/search?q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)"
+        if let league {
+            path += "&league=\(league)"
+        }
+        let data = try await get(path)
+        let response = try decoder.decode(SearchResponse.self, from: data)
+        return response.results
+    }
+
+    // MARK: - Subscriptions
+
+    func getSubscriptions(userId: String) async throws -> [Subscription] {
+        let data = try await get("/api/subscriptions?userId=\(userId)")
+        let response = try decoder.decode(SubscriptionsResponse.self, from: data)
+        return response.subscriptions
+    }
+
+    func createSubscription(_ params: CreateSubscriptionParams) async throws -> Subscription {
+        let data = try await post("/api/subscriptions", body: params)
+        return try decoder.decode(Subscription.self, from: data)
+    }
+
+    func updateSubscription(id: String, active: Bool) async throws {
+        _ = try await put("/api/subscriptions/\(id)", body: ["active": active])
+    }
+
+    func deleteSubscription(id: String) async throws {
+        _ = try await delete("/api/subscriptions/\(id)")
+    }
+
+    // MARK: - Alerts
+
+    func getAlertHistory(userId: String) async throws -> [AlertItem] {
+        let data = try await get("/api/alerts?userId=\(userId)")
+        let response = try decoder.decode(AlertsResponse.self, from: data)
+        return response.alerts
+    }
+
+    // MARK: - HTTP Helpers
+
+    private func get(_ path: String) async throws -> Data {
+        let url = URL(string: "\(baseURL)\(path)")!
+        let (data, response) = try await URLSession.shared.data(from: url)
+        try validateResponse(response)
+        return data
+    }
+
+    private func post(_ path: String, body: some Encodable) async throws -> Data {
+        var request = URLRequest(url: URL(string: "\(baseURL)\(path)")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(response)
+        return data
+    }
+
+    private func put(_ path: String, body: some Encodable) async throws -> Data {
+        var request = URLRequest(url: URL(string: "\(baseURL)\(path)")!)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(response)
+        return data
+    }
+
+    private func delete(_ path: String) async throws -> Data {
+        var request = URLRequest(url: URL(string: "\(baseURL)\(path)")!)
+        request.httpMethod = "DELETE"
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(response)
+        return data
+    }
+
+    private func validateResponse(_ response: URLResponse) throws {
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        guard (200...299).contains(http.statusCode) else {
+            throw APIError.httpError(statusCode: http.statusCode)
+        }
+    }
+}
+
+// MARK: - Request/Response Types
+
+struct CreateSubscriptionParams: Encodable {
+    let userId: String
+    let type: String
+    let league: String
+    let entityId: String
+    let entityName: String
+    let trigger: String
+    let deliveryMethod: String
+}
+
+struct SearchResponse: Decodable {
+    let results: [SearchResult]
+}
+
+struct SubscriptionsResponse: Decodable {
+    let subscriptions: [Subscription]
+}
+
+struct AlertsResponse: Decodable {
+    let alerts: [AlertItem]
+}
+
+enum APIError: LocalizedError {
+    case invalidResponse
+    case httpError(statusCode: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidResponse:
+            "Invalid server response"
+        case .httpError(let code):
+            "Server error (HTTP \(code))"
+        }
+    }
+}

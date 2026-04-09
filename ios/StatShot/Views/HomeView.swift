@@ -68,7 +68,7 @@ struct SubscriptionRow: View {
         HStack(spacing: 12) {
             Image(systemName: subscription.league.icon)
                 .font(.title2)
-                .foregroundStyle(.accent)
+                .foregroundStyle(Color.accentColor)
                 .frame(width: 40)
 
             VStack(alignment: .leading, spacing: 4) {

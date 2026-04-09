@@ -1,9 +1,9 @@
 import Foundation
 import UserNotifications
 
-/// Handles push notification registration and permission requests.
-/// TODO: Import FirebaseMessaging once Firebase SDK is added via SPM.
-final class NotificationService: NSObject {
+/// Handles APNs push notification registration and permission requests.
+/// Sends device token to the Vercel backend for direct APNs delivery.
+final class NotificationService: NSObject, @unchecked Sendable {
     static let shared = NotificationService()
 
     private override init() {
@@ -16,7 +16,7 @@ final class NotificationService: NSObject {
         ) { granted, error in
             if granted {
                 DispatchQueue.main.async {
-                    // TODO: Register for remote notifications
+                    // TODO: Uncomment when running on a real device
                     // UIApplication.shared.registerForRemoteNotifications()
                 }
             }
@@ -28,15 +28,14 @@ final class NotificationService: NSObject {
     }
 
     func handleDeviceToken(_ deviceToken: Data) {
-        // TODO: Pass device token to Firebase Messaging
-        // Messaging.messaging().apnsToken = deviceToken
         let token = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
         print("APNs device token: \(token)")
+
+        // Store locally and send to backend on next register/login
+        UserDefaults.standard.set(token, forKey: "statshot_apns_token")
     }
 
-    func handleFCMToken(_ token: String) {
-        // TODO: Store FCM token in Firestore for the current user
-        // try await FirebaseService.shared.updateFCMToken(userId: userId, token: token)
-        print("FCM token: \(token)")
+    var storedAPNsToken: String? {
+        UserDefaults.standard.string(forKey: "statshot_apns_token")
     }
 }

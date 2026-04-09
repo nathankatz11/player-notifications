@@ -1,41 +1,42 @@
 import Foundation
 
-/// Handles Firebase Auth operations.
-/// TODO: Import FirebaseAuth once Firebase SDK is added via SPM.
-final class AuthService {
+/// Handles authentication via Sign in with Apple.
+/// User accounts are stored in the Vercel/Neon backend.
+final class AuthService: @unchecked Sendable {
     static let shared = AuthService()
 
+    private(set) var currentUserId: String? {
+        get { UserDefaults.standard.string(forKey: "statshot_user_id") }
+        set { UserDefaults.standard.set(newValue, forKey: "statshot_user_id") }
+    }
+
+    var isAuthenticated: Bool { currentUserId != nil }
+
     private init() {}
-
-    var currentUserId: String? {
-        // TODO: Return Firebase Auth current user UID
-        return nil
-    }
-
-    var isAuthenticated: Bool {
-        currentUserId != nil
-    }
 
     func signInWithApple() async throws -> String {
         // TODO: Implement Sign in with Apple flow:
         // 1. Create ASAuthorizationAppleIDProvider request
         // 2. Present ASAuthorizationController
-        // 3. Get Apple ID credential from delegate
-        // 4. Create OAuthProvider credential for Firebase
-        // 5. Sign in with Firebase Auth
-        // 6. Return user ID
+        // 3. Get Apple ID credential (email, identity token)
+        // 4. Call POST /api/register with email + APNs token
+        // 5. Store returned userId locally
         throw AuthError.notImplemented
     }
 
-    func signOut() throws {
-        // TODO: Firebase Auth sign out
+    func register(email: String, apnsToken: String) async throws {
+        let userId = try await APIService.shared.register(email: email, apnsToken: apnsToken)
+        currentUserId = userId
+    }
+
+    func signOut() {
+        currentUserId = nil
     }
 }
 
 enum AuthError: LocalizedError {
     case notImplemented
     case signInFailed(underlying: Error)
-    case signOutFailed(underlying: Error)
 
     var errorDescription: String? {
         switch self {
@@ -43,8 +44,6 @@ enum AuthError: LocalizedError {
             "Authentication not yet configured"
         case .signInFailed(let error):
             "Sign in failed: \(error.localizedDescription)"
-        case .signOutFailed(let error):
-            "Sign out failed: \(error.localizedDescription)"
         }
     }
 }

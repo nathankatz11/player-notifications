@@ -20,17 +20,20 @@ struct ContentView: View {
 
     var body: some View {
         TabView {
-            Tab("Alerts", systemImage: "bell.fill") {
-                HomeView()
-            }
+            HomeView()
+                .tabItem {
+                    Label("Alerts", systemImage: "bell.fill")
+                }
 
-            Tab("History", systemImage: "clock.fill") {
-                AlertHistoryView()
-            }
+            AlertHistoryView()
+                .tabItem {
+                    Label("History", systemImage: "clock.fill")
+                }
 
-            Tab("Settings", systemImage: "gear") {
-                SettingsView()
-            }
+            SettingsView()
+                .tabItem {
+                    Label("Settings", systemImage: "gear")
+                }
         }
     }
 }

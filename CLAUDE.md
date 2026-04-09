@@ -2,10 +2,10 @@
 
 ## Quick Reference
 - **Platform**: iOS 17+ (Swift 6 / SwiftUI)
-- **Backend**: Firebase Cloud Functions (TypeScript)
-- **Database**: Firestore
-- **Auth**: Firebase Auth (Sign in with Apple)
-- **Push**: FCM → APNs
+- **Backend**: Next.js on Vercel (TypeScript)
+- **Database**: Neon Postgres via Vercel Marketplace (Drizzle ORM)
+- **Auth**: Sign in with Apple → Vercel API
+- **Push**: Direct APNs (HTTP/2 from Vercel Functions)
 - **Data Source**: ESPN unofficial API
 - **Payments**: Stripe (premium tier)
 - **SMS**: Twilio (premium tier)
@@ -20,16 +20,23 @@ player-notifications/
 │       ├── Models/               # Data models
 │       ├── Views/                # SwiftUI views
 │       ├── ViewModels/           # @Observable view models
-│       └── Services/             # Firebase, Auth, Notifications, Stripe
-├── functions/                    # Firebase Cloud Functions
-│   └── src/
-│       ├── polling/              # ESPN score polling
-│       ├── alerts/               # Alert matching + dispatch (FCM, Twilio)
-│       ├── api/                  # HTTP endpoints (search, subscriptions)
-│       └── lib/                  # ESPN client, types
-├── firebase.json                 # Firebase config
-├── firestore.rules               # Security rules
-├── firestore.indexes.json        # Firestore indexes
+│       └── Services/             # APIService, Auth, Notifications, Stripe
+├── backend/                      # Next.js Vercel backend
+│   ├── app/api/                  # API routes
+│   │   ├── register/             # POST — device registration
+│   │   ├── scores/               # GET — live scores (all + per league)
+│   │   ├── search/               # GET — player/team search
+│   │   ├── subscriptions/        # GET/POST/PUT/DELETE — alert subscriptions
+│   │   ├── alerts/               # GET — alert history
+│   │   └── cron/poll/            # GET — Vercel Cron (ESPN polling)
+│   ├── lib/
+│   │   ├── db/                   # Neon Postgres + Drizzle schema
+│   │   ├── espn.ts               # ESPN API client
+│   │   ├── apns.ts               # APNs push client
+│   │   ├── twilio.ts             # Twilio SMS client
+│   │   └── alerts.ts             # Alert matching engine
+│   ├── drizzle.config.ts         # Drizzle Kit config
+│   └── vercel.json               # Cron job config
 └── SKILL.md                      # Full product spec (Justin's)
 ```
 
@@ -42,15 +49,17 @@ player-notifications/
 - Swift 6 strict concurrency
 
 ## Backend Conventions
-- Firebase Functions v2 API (`firebase-functions/v2/*`)
-- TypeScript strict mode
-- ESPN polling runs every 1 minute via Cloud Scheduler
-- Alert deduplication via `lastPlayId` in Firestore `/games/{id}`
+- Next.js App Router with route handlers
+- Neon Postgres via `@neondatabase/serverless` + Drizzle ORM
+- Lazy DB initialization (proxy pattern) for build-time safety
+- Vercel Cron runs `/api/cron/poll` every minute
+- CRON_SECRET header validation on cron endpoint
 
 ## Build Commands
-- Backend: `cd functions && npm run build`
-- Backend dev: `firebase emulators:start`
+- Backend: `cd backend && npm run build`
+- Backend dev: `cd backend && npm run dev`
 - iOS: Generate Xcode project with `cd ios && xcodegen generate`
+- DB migrations: `cd backend && npx drizzle-kit push`
 
 ## Spec
 @import SKILL.md

@@ -56,7 +56,7 @@ struct SettingsView: View {
                     Spacer()
                     Text("$4.99/mo")
                         .fontWeight(.medium)
-                        .foregroundStyle(.accent)
+                        .foregroundStyle(Color.accentColor)
                 }
             }
         }

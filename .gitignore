@@ -1,8 +1,7 @@
-# === Node / Firebase Functions ===
+# === Node / Next.js / Vercel ===
 node_modules/
-functions/lib/
-functions/node_modules/
-.firebase/
+.next/
+.vercel/
 
 # === Swift / Xcode ===
 ios/StatShot.xcodeproj/xcuserdata/
@@ -22,7 +21,6 @@ build/
 *.p8
 *.p12
 GoogleService-Info.plist
-functions/.secret.local
 
 # === OS ===
 .DS_Store
