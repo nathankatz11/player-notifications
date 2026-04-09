@@ -311,6 +311,7 @@ struct GameDetailSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var showingAddAlert = false
+    @State private var showingFollowPlayer = false
 
     private func teamLogoURL(abbreviation: String) -> URL? {
         let abbr = abbreviation.lowercased()
@@ -390,17 +391,31 @@ struct GameDetailSheet: View {
 
                 Spacer()
 
-                // Create Alert button
-                Button {
-                    showingAddAlert = true
-                } label: {
-                    Label("Create Alert", systemImage: "bell.badge")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                VStack(spacing: 12) {
+                    // Follow a player button
+                    Button {
+                        showingFollowPlayer = true
+                    } label: {
+                        Label("Follow a Player from This Game", systemImage: "person.badge.plus")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.accentColor)
+
+                    // Create Alert button
+                    Button {
+                        showingAddAlert = true
+                    } label: {
+                        Label("Create Alert", systemImage: "bell.badge")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Color.accentColor)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color.accentColor)
                 .padding(.horizontal)
                 .padding(.bottom)
             }
@@ -415,6 +430,9 @@ struct GameDetailSheet: View {
             }
             .sheet(isPresented: $showingAddAlert) {
                 AddAlertView()
+            }
+            .sheet(isPresented: $showingFollowPlayer) {
+                AddAlertView(initialLeague: league)
             }
         }
     }

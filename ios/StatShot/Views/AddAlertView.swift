@@ -4,19 +4,29 @@ struct AddAlertView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = SubscriptionViewModel()
 
+    private let initialLeague: League?
+
     @State private var selectedLeague: League = .nba
     @State private var selectedTrigger: TriggerType?
     @State private var selectedEntity: SearchResult?
     @State private var deliveryMethod: DeliveryMethod = .push
     @State private var teamFilter = ""
     @State private var showSuccess = false
+    @State private var isTeamSectionExpanded = false
+
+    init(initialLeague: League? = nil) {
+        self.initialLeague = initialLeague
+        if let league = initialLeague {
+            _selectedLeague = State(initialValue: league)
+        }
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 leagueSection
+                playerSearchSection
                 teamPickerSection
-                searchSection
                 triggerSection
                 deliverySection
                 createSection
@@ -80,90 +90,46 @@ struct AddAlertView: View {
         }
     }
 
-    private var teamPickerSection: some View {
-        Section("Select a Team") {
-            if viewModel.isLoadingTeams {
-                HStack {
-                    Spacer()
-                    ProgressView()
-                    Spacer()
-                }
-            } else if viewModel.teams.isEmpty {
-                Text("No teams available")
-                    .foregroundStyle(.secondary)
-            } else {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("Filter teams...", text: $teamFilter)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    if !teamFilter.isEmpty {
-                        Button {
-                            teamFilter = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                ForEach(filteredTeams) { team in
+    // MARK: - Player Search (Primary)
+
+    private var playerSearchSection: some View {
+        Section {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(Color.accentColor)
+                    .font(.title3)
+                TextField("Search for a player...", text: $viewModel.searchQuery)
+                    .font(.body)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+                if !viewModel.searchQuery.isEmpty {
                     Button {
-                        selectedEntity = SearchResult(
-                            id: team.id,
-                            name: team.name,
-                            type: "team",
-                            imageUrl: team.logoUrl
-                        )
                         viewModel.searchQuery = ""
                         viewModel.searchResults = []
                     } label: {
-                        HStack(spacing: 10) {
-                            AsyncImage(url: team.logoUrl.flatMap { URL(string: $0) }) { image in
-                                image
-                                    .resizable()
-                                    .scaledToFit()
-                            } placeholder: {
-                                Text(team.abbreviation)
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(width: 28, height: 28)
-                            .clipShape(Circle())
-
-                            Text(team.name)
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            Text(team.abbreviation)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if selectedEntity?.id == team.id && selectedEntity?.type == "team" {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(Color.accentColor)
-                            }
-                        }
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
                     }
+                    .buttonStyle(.plain)
                 }
             }
-        }
-    }
-
-    private var searchSection: some View {
-        Section("Or Search Players") {
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Search players...", text: $viewModel.searchQuery)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-            }
+            .padding(.vertical, 4)
             .onChange(of: viewModel.searchQuery) {
                 Task { await viewModel.searchEntities() }
             }
 
             if viewModel.isSearching {
-                ProgressView()
+                HStack {
+                    Spacer()
+                    ProgressView()
+                    Spacer()
+                }
+            }
+
+            if viewModel.searchQuery.isEmpty && !viewModel.isSearching && viewModel.searchResults.isEmpty && selectedEntity == nil {
+                Text("Try: LeBron James, Patrick Mahomes, Connor McDavid...")
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
             }
 
             ForEach(viewModel.searchResults) { result in
@@ -172,27 +138,134 @@ struct AddAlertView: View {
                     viewModel.searchQuery = result.name
                     viewModel.searchResults = []
                 } label: {
-                    HStack {
-                        Text(result.name)
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Text(result.type)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    if result.type == "player" {
+                        HStack(spacing: 10) {
+                            Image(systemName: "person.fill")
+                                .foregroundStyle(Color.accentColor)
+                                .frame(width: 24)
+                            Text(result.name)
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if selectedEntity?.id == result.id {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                    } else {
+                        HStack(spacing: 10) {
+                            Image(systemName: "shield.fill")
+                                .foregroundStyle(.secondary)
+                                .frame(width: 24)
+                            Text(result.name)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("Team")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.secondary.opacity(0.12), in: Capsule())
+                        }
                     }
                 }
             }
 
             if let entity = selectedEntity {
-                HStack {
+                HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                     Text(entity.name)
                         .fontWeight(.semibold)
                     Spacer()
-                    Text(entity.type)
+                    Text(entity.type == "player" ? "Player" : "Team")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    Button {
+                        selectedEntity = nil
+                        viewModel.searchQuery = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.vertical, 2)
+            }
+        } header: {
+            Text("Find a Player")
+        }
+    }
+
+    // MARK: - Team Picker (Secondary, collapsed)
+
+    private var teamPickerSection: some View {
+        Section {
+            DisclosureGroup("Or Pick a Team", isExpanded: $isTeamSectionExpanded) {
+                if viewModel.isLoadingTeams {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                        Spacer()
+                    }
+                } else if viewModel.teams.isEmpty {
+                    Text("No teams available")
+                        .foregroundStyle(.secondary)
+                } else {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("Filter teams...", text: $teamFilter)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        if !teamFilter.isEmpty {
+                            Button {
+                                teamFilter = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    ForEach(filteredTeams) { team in
+                        Button {
+                            selectedEntity = SearchResult(
+                                id: team.id,
+                                name: team.name,
+                                type: "team",
+                                imageUrl: team.logoUrl
+                            )
+                            viewModel.searchQuery = ""
+                            viewModel.searchResults = []
+                        } label: {
+                            HStack(spacing: 10) {
+                                AsyncImage(url: team.logoUrl.flatMap { URL(string: $0) }) { image in
+                                    image
+                                        .resizable()
+                                        .scaledToFit()
+                                } placeholder: {
+                                    Text(team.abbreviation)
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(width: 28, height: 28)
+                                .clipShape(Circle())
+
+                                Text(team.name)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Text(team.abbreviation)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                if selectedEntity?.id == team.id && selectedEntity?.type == "team" {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(Color.accentColor)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -205,8 +278,13 @@ struct AddAlertView: View {
                     selectedTrigger = trigger
                 } label: {
                     HStack {
-                        Text(trigger.displayName)
-                            .foregroundStyle(.primary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(trigger.displayName)
+                                .foregroundStyle(.primary)
+                            Text(trigger.triggerDescription)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                         Spacer()
                         if selectedTrigger == trigger {
                             Image(systemName: "checkmark")

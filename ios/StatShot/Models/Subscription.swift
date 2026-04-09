@@ -120,6 +120,34 @@ enum TriggerType: String, Codable, CaseIterable, Identifiable {
         case .penaltyKick: "Penalty Kick"
         }
     }
+
+    var triggerDescription: String {
+        switch self {
+        case .pointsScored: "Puts the ball through the hoop"
+        case .turnover: "Ball lost to the other team"
+        case .technicalFoul: "Unsportsmanlike conduct call"
+        case .ejection: "Tossed from the game"
+        case .gameWinner: "Hits the clutch shot to win it"
+        case .teamWin: "Team wins the game"
+        case .teamLoss: "Team loses the game"
+        case .touchdown: "Scores a TD"
+        case .interception: "Pass picked off by the defense"
+        case .fumble: "Loses the ball on the ground"
+        case .sack: "Quarterback taken down behind the line"
+        case .fieldGoal: "Kicks it through the uprights"
+        case .goal: "Puts it in the net"
+        case .assist: "Sets up a teammate to score"
+        case .penalty: "Sent to the box for an infraction"
+        case .hatTrick: "Scores three goals in a game"
+        case .shutout: "Goalie allows zero goals"
+        case .homeRun: "Hits one out of the park"
+        case .strikeout: "Batter goes down swinging"
+        case .stolenBase: "Swipes a base on the basepath"
+        case .error: "Fielding mistake lets a runner advance"
+        case .redCard: "Ejected from the match"
+        case .penaltyKick: "Awarded a shot from the spot"
+        }
+    }
 }
 
 enum SubscriptionType: String, Codable {
