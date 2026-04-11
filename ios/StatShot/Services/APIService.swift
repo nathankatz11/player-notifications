@@ -101,6 +101,21 @@ final class APIService: Sendable {
         return response.trending
     }
 
+    // MARK: - Profile
+
+    func getProfile(userId: String) async throws -> ProfileResponse {
+        let data = try await get("/api/profile?userId=\(userId)")
+        return try decoder.decode(ProfileResponse.self, from: data)
+    }
+
+    func updateProfile(userId: String, phone: String? = nil, xHandle: String? = nil) async throws -> ProfileResponse {
+        var body: [String: String?] = ["userId": userId]
+        if let phone { body["phone"] = phone }
+        if let xHandle { body["xHandle"] = xHandle }
+        let data = try await patch("/api/profile", body: body)
+        return try decoder.decode(ProfileResponse.self, from: data)
+    }
+
     // MARK: - Alerts
 
     func getAlertHistory(userId: String) async throws -> [AlertItem] {
@@ -131,6 +146,16 @@ final class APIService: Sendable {
     private func put(_ path: String, body: some Encodable) async throws -> Data {
         var request = URLRequest(url: URL(string: "\(baseURL)\(path)")!)
         request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(response, data: data)
+        return data
+    }
+
+    private func patch(_ path: String, body: some Encodable) async throws -> Data {
+        var request = URLRequest(url: URL(string: "\(baseURL)\(path)")!)
+        request.httpMethod = "PATCH"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -213,6 +238,14 @@ struct TrendingPlayer: Codable, Identifiable, Sendable {
 
 struct TrendingResponse: Decodable, Sendable {
     let trending: [TrendingPlayer]
+}
+
+struct ProfileResponse: Decodable, Sendable {
+    let id: String
+    let email: String?
+    let phone: String?
+    let xHandle: String?
+    let plan: String?
 }
 
 enum APIError: LocalizedError {

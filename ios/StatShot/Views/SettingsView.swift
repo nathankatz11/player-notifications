@@ -14,6 +14,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 accountSection
+                contactSection
                 alertsSection
                 notificationSection
                 aboutSection
@@ -22,6 +23,7 @@ struct SettingsView: View {
             .task {
                 await loadActiveAlerts()
                 await checkNotificationStatus()
+                await authViewModel.loadProfile()
             }
         }
     }
@@ -45,6 +47,48 @@ struct SettingsView: View {
                     Label("Sign In (Test Mode)", systemImage: "person.badge.key")
                 }
             }
+        }
+    }
+
+    // MARK: - Contact Info
+
+    private var contactSection: some View {
+        @Bindable var auth = authViewModel
+        return Section {
+            HStack(spacing: 10) {
+                Image(systemName: "message.fill")
+                    .foregroundStyle(.green)
+                    .frame(width: 20)
+                TextField("Phone number for SMS", text: $auth.phone)
+                    .keyboardType(.phonePad)
+                    .autocorrectionDisabled()
+                    .onSubmit { Task { await authViewModel.saveProfile() } }
+            }
+
+            HStack(spacing: 10) {
+                Image(systemName: "bird")
+                    .foregroundStyle(Color(red: 0.11, green: 0.63, blue: 0.95))
+                    .frame(width: 20)
+                TextField("Default X handle to tag", text: $auth.xHandle)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .onSubmit { Task { await authViewModel.saveProfile() } }
+            }
+
+            Button {
+                Task { await authViewModel.saveProfile() }
+            } label: {
+                Text("Save Contact Info")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!authViewModel.isAuthenticated)
+        } header: {
+            Text("Contact Info")
+        } footer: {
+            Text("Used for SMS alerts and X tagging. The X handle can be yours or a friend's.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

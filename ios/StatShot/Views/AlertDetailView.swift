@@ -125,13 +125,26 @@ struct AlertDetailView: View {
                         }
                     }
                 } else {
-                    Circle()
-                        .fill(leagueColor.opacity(0.15))
-                        .frame(width: 108, height: 108)
-
-                    Image(systemName: subscription.league.icon)
-                        .font(.system(size: 44, weight: .medium))
-                        .foregroundStyle(leagueColor)
+                    // Team subscriptions: show team logo
+                    AsyncImage(url: League.teamLogoURL(espnId: subscription.entityId, league: subscription.league)) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 108, height: 108)
+                                .clipShape(Circle())
+                        default:
+                            Circle()
+                                .fill(leagueColor.opacity(0.15))
+                                .frame(width: 108, height: 108)
+                                .overlay {
+                                    Image(systemName: subscription.league.icon)
+                                        .font(.system(size: 44, weight: .medium))
+                                        .foregroundStyle(leagueColor)
+                                }
+                        }
+                    }
                 }
             }
 

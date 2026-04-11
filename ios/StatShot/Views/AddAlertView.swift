@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AddAlertView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AuthViewModel.self) private var authViewModel
     @State private var viewModel = SubscriptionViewModel()
 
     private let initialLeague: League?
@@ -9,6 +10,8 @@ struct AddAlertView: View {
     @State private var selectedLeague: League = .nba
     @State private var selectedTrigger: TriggerType?
     @State private var selectedEntity: SearchResult?
+    @State private var selectedDelivery: DeliveryMethod = .push
+    @State private var contactInput: String = ""
     @State private var teamFilter = ""
     @State private var showSuccess = false
 
@@ -27,8 +30,11 @@ struct AddAlertView: View {
                     trendingSection
                 }
                 playerSearchSection
-                teamPickerSection
+                if selectedEntity == nil || selectedEntity?.type == "team" {
+                    teamPickerSection
+                }
                 triggerSection
+                deliverySection
             }
             .navigationTitle("New Alert")
             .navigationBarTitleDisplayMode(.inline)
@@ -91,8 +97,22 @@ struct AddAlertView: View {
         Section("League") {
             Picker("League", selection: $selectedLeague) {
                 ForEach(League.allCases) { league in
-                    Label(league.displayName, systemImage: league.icon)
-                        .tag(league)
+                    HStack(spacing: 8) {
+                        AsyncImage(url: league.leagueLogoURL) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 22, height: 22)
+                            default:
+                                Image(systemName: league.icon)
+                                    .frame(width: 22, height: 22)
+                            }
+                        }
+                        Text(league.displayName)
+                    }
+                    .tag(league)
                 }
             }
             .pickerStyle(.navigationLink)
@@ -263,9 +283,20 @@ struct AddAlertView: View {
                         }
                     } else {
                         HStack(spacing: 10) {
-                            Image(systemName: "shield.fill")
-                                .foregroundStyle(.secondary)
-                                .frame(width: 24)
+                            AsyncImage(url: result.imageUrl.flatMap { URL(string: $0) }) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 32, height: 32)
+                                        .clipShape(Circle())
+                                default:
+                                    Image(systemName: "shield.fill")
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 32, height: 32)
+                                }
+                            }
                             Text(result.name)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
@@ -404,7 +435,65 @@ struct AddAlertView: View {
     }
 
     private var deliverySection: some View {
-        EmptyView()
+        Section("Deliver Alert Via") {
+            ForEach(DeliveryMethod.allCases) { method in
+                Button {
+                    selectedDelivery = method
+                    // Pre-fill contact from saved profile
+                    if method == .sms { contactInput = authViewModel.phone }
+                    if method == .tweet { contactInput = authViewModel.xHandle }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: method.icon)
+                            .foregroundStyle(selectedDelivery == method ? Color.accentColor : Color.secondary)
+                            .frame(width: 20)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(method.displayName)
+                                .foregroundStyle(.primary)
+                            if method == .sms {
+                                Text("Premium — we'll text you when it happens")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else if method == .tweet {
+                                Text("Premium — we'll tag any X handle when it happens")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        if selectedDelivery == method {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+
+            if selectedDelivery == .sms {
+                HStack(spacing: 10) {
+                    Image(systemName: "phone.fill")
+                        .foregroundStyle(.green)
+                        .frame(width: 20)
+                    TextField("Phone number", text: $contactInput)
+                        .keyboardType(.phonePad)
+                        .autocorrectionDisabled()
+                }
+                .padding(.vertical, 2)
+            }
+
+            if selectedDelivery == .tweet {
+                HStack(spacing: 10) {
+                    Image(systemName: "bird")
+                        .foregroundStyle(Color(red: 0.11, green: 0.63, blue: 0.95))
+                        .frame(width: 20)
+                    TextField("X handle to tag (yours or a friend's)", text: $contactInput)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+                .padding(.vertical, 2)
+            }
+        }
     }
 
     private var createSection: some View {
@@ -426,6 +515,18 @@ struct AddAlertView: View {
     private func createAlert() async {
         guard let entity = selectedEntity, let trigger = selectedTrigger else { return }
 
+        // Save phone/X handle to profile if provided
+        let trimmed = contactInput.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            if selectedDelivery == .sms {
+                authViewModel.phone = trimmed
+                await authViewModel.saveProfile()
+            } else if selectedDelivery == .tweet {
+                authViewModel.xHandle = trimmed
+                await authViewModel.saveProfile()
+            }
+        }
+
         let subscriptionType: SubscriptionType = entity.type == "team" ? .teamEvent : .playerStat
 
         await viewModel.createSubscription(
@@ -434,7 +535,7 @@ struct AddAlertView: View {
             entityId: entity.id,
             entityName: entity.name,
             trigger: trigger,
-            deliveryMethod: .push
+            deliveryMethod: selectedDelivery
         )
 
         guard viewModel.errorMessage == nil else { return }

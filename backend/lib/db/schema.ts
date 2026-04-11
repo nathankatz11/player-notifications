@@ -9,7 +9,7 @@ import {
 
 // Enums
 export const planEnum = pgEnum("plan", ["free", "premium"]);
-export const deliveryMethodEnum = pgEnum("delivery_method", ["push", "sms", "both"]);
+export const deliveryMethodEnum = pgEnum("delivery_method", ["push", "sms", "both", "tweet"]);
 export const subscriptionTypeEnum = pgEnum("subscription_type", ["player_stat", "team_event"]);
 export const leagueEnum = pgEnum("league", ["nba", "nfl", "nhl", "mlb", "ncaafb", "ncaamb", "mls"]);
 export const gameStatusEnum = pgEnum("game_status", ["pre", "in", "post"]);
@@ -19,6 +19,7 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull(),
   phone: text("phone"),
+  xHandle: text("x_handle"),
   apnsToken: text("apns_token"),
   plan: planEnum("plan").notNull().default("free"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
