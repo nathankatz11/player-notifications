@@ -166,26 +166,41 @@ struct ScoreFeedView: View {
                     Button {
                         viewModel.selectedLeague = league
                     } label: {
-                        Text(league.shortName)
-                            .font(.subheadline.bold())
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(
-                                viewModel.selectedLeague == league
-                                    ? league.color
-                                    : Color.clear,
-                                in: Capsule()
-                            )
-                            .foregroundStyle(
-                                viewModel.selectedLeague == league
-                                    ? .white
-                                    : .secondary
-                            )
-                            .overlay(
-                                viewModel.selectedLeague == league
-                                    ? nil
-                                    : Capsule().strokeBorder(.secondary.opacity(0.3), lineWidth: 1)
-                            )
+                        HStack(spacing: 6) {
+                            AsyncImage(url: league.leagueLogoURL) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 18, height: 18)
+                                default:
+                                    Image(systemName: league.icon)
+                                        .font(.system(size: 13))
+                                        .frame(width: 18, height: 18)
+                                }
+                            }
+                            Text(league.shortName)
+                                .font(.subheadline.bold())
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(
+                            viewModel.selectedLeague == league
+                                ? league.color
+                                : Color.clear,
+                            in: Capsule()
+                        )
+                        .foregroundStyle(
+                            viewModel.selectedLeague == league
+                                ? .white
+                                : .secondary
+                        )
+                        .overlay(
+                            viewModel.selectedLeague == league
+                                ? nil
+                                : Capsule().strokeBorder(.secondary.opacity(0.3), lineWidth: 1)
+                        )
                     }
                 }
             }

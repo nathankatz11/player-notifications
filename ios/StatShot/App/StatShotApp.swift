@@ -41,14 +41,14 @@ struct ContentView: View {
             ProgressView("Setting up...")
         } else {
             TabView {
-                ScoreFeedView()
-                    .tabItem {
-                        Label("Scores", systemImage: "sportscourt.fill")
-                    }
-
                 HomeView()
                     .tabItem {
                         Label("Alerts", systemImage: "bell.fill")
+                    }
+
+                ScoreFeedView()
+                    .tabItem {
+                        Label("Scores", systemImage: "sportscourt.fill")
                     }
 
                 SettingsView()

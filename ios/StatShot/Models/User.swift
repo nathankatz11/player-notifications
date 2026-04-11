@@ -9,7 +9,8 @@ struct AppUser: Codable {
     let id: String
     let email: String
     let phone: String?
-    let fcmToken: String
+    let xHandle: String?
+    let fcmToken: String?
     let plan: UserPlan
-    let createdAt: Date
+    let createdAt: Date?
 }

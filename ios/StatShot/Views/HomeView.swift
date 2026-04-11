@@ -5,11 +5,6 @@ struct HomeView: View {
     @State private var showingAddAlert = false
     @State private var selectedSubscription: Subscription?
     @State private var alertCounts: [String: Int] = [:]
-    @State private var tappedId: String?
-
-    private let columns = [
-        GridItem(.adaptive(minimum: 150), spacing: 16)
-    ]
 
     var body: some View {
         NavigationStack {
@@ -19,7 +14,7 @@ struct HomeView: View {
                 } else if viewModel.subscriptions.isEmpty {
                     emptyState
                 } else {
-                    alertGrid
+                    alertList
                 }
             }
             .navigationTitle("My Alerts")
@@ -37,7 +32,6 @@ struct HomeView: View {
             }
             .sheet(item: $selectedSubscription) { subscription in
                 AlertDetailView(subscription: subscription) {
-                    // onDeleted — remove locally so the grid updates immediately
                     viewModel.subscriptions.removeAll { $0.id == subscription.id }
                 }
             }
@@ -83,7 +77,7 @@ struct HomeView: View {
 
             VStack(alignment: .leading, spacing: 16) {
                 stepRow(number: 1, text: "Browse scores", icon: "sportscourt")
-                stepRow(number: 2, text: "Pick a team", icon: "person.2.fill")
+                stepRow(number: 2, text: "Pick a team or player", icon: "person.fill")
                 stepRow(number: 3, text: "Choose what to track", icon: "bell.fill")
             }
             .padding(.horizontal, 32)
@@ -120,49 +114,43 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Alert Grid
+    // MARK: - Alert List
 
-    private var alertGrid: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(viewModel.subscriptions) { subscription in
-                    Button {
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        tappedId = subscription.id
-                        Task {
-                            try? await Task.sleep(for: .milliseconds(150))
-                            tappedId = nil
-                        }
-                        selectedSubscription = subscription
+    private var alertList: some View {
+        List {
+            ForEach(viewModel.subscriptions) { subscription in
+                Button {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    selectedSubscription = subscription
+                } label: {
+                    AlertRow(
+                        subscription: subscription,
+                        alertCount: alertCounts[subscription.id] ?? 0
+                    )
+                }
+                .buttonStyle(.plain)
+                .listRowBackground(Color(white: 0.11))
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) {
+                        Task { await viewModel.deleteSubscription(subscription) }
                     } label: {
-                        AlertCard(subscription: subscription)
-                            .overlay(alignment: .topTrailing) {
-                                if let count = alertCounts[subscription.id], count > 0 {
-                                    Text("\(count)")
-                                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                                        .foregroundStyle(.white)
-                                        .frame(minWidth: 22, minHeight: 22)
-                                        .background(Color.red, in: Circle())
-                                        .offset(x: 6, y: -6)
-                                }
-                            }
+                        Label("Delete", systemImage: "trash")
                     }
-                    .buttonStyle(.plain)
-                    .scaleEffect(tappedId == subscription.id ? 0.95 : 1.0)
-                    .animation(.easeInOut(duration: 0.15), value: tappedId)
-                    .contextMenu {
-                        Button(subscription.active ? "Pause" : "Resume",
-                               systemImage: subscription.active ? "pause.circle" : "play.circle") {
-                            Task { await viewModel.toggleSubscription(subscription) }
-                        }
-                        Button("Delete", systemImage: "trash", role: .destructive) {
-                            Task { await viewModel.deleteSubscription(subscription) }
-                        }
+                    Button {
+                        Task { await viewModel.toggleSubscription(subscription) }
+                    } label: {
+                        Label(
+                            subscription.active ? "Pause" : "Resume",
+                            systemImage: subscription.active ? "pause.circle" : "play.circle"
+                        )
                     }
+                    .tint(subscription.active ? .orange : .green)
                 }
             }
-            .padding(16)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 
     // MARK: - Alert Counts
@@ -182,108 +170,104 @@ struct HomeView: View {
     }
 }
 
-// MARK: - Alert Card
+// MARK: - Alert Row
 
-struct AlertCard: View {
+struct AlertRow: View {
     let subscription: Subscription
+    let alertCount: Int
 
-    private var leagueColor: Color {
-        subscription.league.color
-    }
-
-    private var isActive: Bool {
-        subscription.active
-    }
-
-    private var isPlayerSubscription: Bool {
-        subscription.type == .playerStat
-    }
+    private var leagueColor: Color { subscription.league.color }
+    private var isActive: Bool { subscription.active }
 
     var body: some View {
-        VStack(spacing: 0) {
+        HStack(spacing: 14) {
+            // Avatar: player headshot or team logo
             ZStack {
-                // Outer ring
                 Circle()
-                    .strokeBorder(
-                        leagueColor.opacity(isActive ? 1.0 : 0.25),
-                        lineWidth: 5
-                    )
-                    .frame(width: 90, height: 90)
+                    .strokeBorder(leagueColor.opacity(isActive ? 0.8 : 0.25), lineWidth: 2)
+                    .frame(width: 52, height: 52)
 
-                if isPlayerSubscription,
-                   let url = League.playerHeadshotURL(espnId: subscription.entityId, league: subscription.league, size: 80) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 80, height: 80)
-                                .clipShape(Circle())
-                        default:
-                            Circle()
-                                .fill(leagueColor.opacity(isActive ? 0.15 : 0.05))
-                                .frame(width: 80, height: 80)
-                                .overlay {
-                                    Image(systemName: subscription.league.icon)
-                                        .font(.system(size: 28, weight: .medium))
-                                        .foregroundStyle(leagueColor.opacity(isActive ? 1.0 : 0.3))
-                                }
-                        }
+                avatarImage
+                    .frame(width: 44, height: 44)
+                    .clipShape(Circle())
+            }
+
+            // Name + trigger
+            VStack(alignment: .leading, spacing: 3) {
+                Text(subscription.entityName)
+                    .font(.system(.body, design: .rounded, weight: .semibold))
+                    .foregroundStyle(isActive ? .white : .white.opacity(0.4))
+                    .lineLimit(1)
+
+                Text(subscription.trigger.displayName)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary.opacity(isActive ? 1.0 : 0.5))
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            // Right side: league badge + alert count + status dot
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(subscription.league.shortName)
+                    .font(.system(.caption2, design: .rounded, weight: .bold))
+                    .foregroundStyle(leagueColor.opacity(isActive ? 1.0 : 0.4))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(leagueColor.opacity(isActive ? 0.15 : 0.06), in: Capsule())
+
+                HStack(spacing: 4) {
+                    if alertCount > 0 {
+                        Text("\(alertCount)")
+                            .font(.system(.caption2, design: .rounded, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.red, in: Capsule())
                     }
-                } else {
-                    // Team subscriptions: keep SF Symbol
                     Circle()
-                        .fill(leagueColor.opacity(isActive ? 0.15 : 0.05))
-                        .frame(width: 80, height: 80)
-
-                    Image(systemName: subscription.league.icon)
-                        .font(.system(size: 28, weight: .medium))
-                        .foregroundStyle(leagueColor.opacity(isActive ? 1.0 : 0.3))
+                        .fill(isActive ? leagueColor : Color(white: 0.3))
+                        .frame(width: 8, height: 8)
                 }
             }
-            .padding(.top, 14)
-
-            // Entity name
-            Text(subscription.entityName)
-                .font(.system(.subheadline, design: .rounded, weight: .bold))
-                .foregroundStyle(isActive ? .white : .white.opacity(0.35))
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .frame(height: 40)
-                .padding(.top, 8)
-
-            // Trigger badge
-            Text(subscription.trigger.shortLabel)
-                .font(.system(.caption2, design: .rounded, weight: .heavy))
-                .foregroundStyle(isActive ? leagueColor : leagueColor.opacity(0.4))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 3)
-                .background(
-                    Capsule()
-                        .fill(leagueColor.opacity(isActive ? 0.15 : 0.05))
-                )
-                .padding(.top, 4)
-
-            // League short name
-            Text(subscription.league.shortName)
-                .font(.system(.caption2, design: .rounded))
-                .foregroundStyle(.secondary.opacity(isActive ? 1.0 : 0.4))
-                .padding(.top, 2)
-                .padding(.bottom, 14)
         }
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color(white: 0.11))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(
-                    leagueColor.opacity(isActive ? 0.2 : 0.06),
-                    lineWidth: 1
-                )
-        )
-        .opacity(isActive ? 1.0 : 0.6)
+        .padding(.vertical, 6)
+        .opacity(isActive ? 1.0 : 0.55)
+    }
+
+    @ViewBuilder
+    private var avatarImage: some View {
+        if subscription.type == .playerStat,
+           let url = League.playerHeadshotURL(espnId: subscription.entityId, league: subscription.league, size: 88) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().scaledToFill()
+                default:
+                    Circle()
+                        .fill(leagueColor.opacity(0.15))
+                        .overlay {
+                            Image(systemName: subscription.league.icon)
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundStyle(leagueColor.opacity(0.7))
+                        }
+                }
+            }
+        } else {
+            AsyncImage(url: League.teamLogoURL(espnId: subscription.entityId, league: subscription.league)) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().scaledToFit()
+                default:
+                    Circle()
+                        .fill(leagueColor.opacity(0.15))
+                        .overlay {
+                            Image(systemName: subscription.league.icon)
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundStyle(leagueColor.opacity(0.7))
+                        }
+                }
+            }
+        }
     }
 }

@@ -85,6 +85,26 @@ enum League: String, Codable, CaseIterable, Identifiable {
         return URL(string: "https://a.espncdn.com/combiner/i?img=/i/headshots/\(sport)/players/full/\(espnId).png&w=\(size)&h=\(size)")
     }
 
+    /// Builds the ESPN team logo URL for a team in this league by ESPN team ID.
+    static func teamLogoURL(espnId: String, league: League) -> URL? {
+        URL(string: "https://a.espncdn.com/i/teamlogos/\(league.espnSport)/500/\(espnId).png")
+    }
+
+    /// ESPN league logo URL.
+    var leagueLogoURL: URL? {
+        let slug: String
+        switch self {
+        case .nba: slug = "nba"
+        case .nfl: slug = "nfl"
+        case .nhl: slug = "nhl"
+        case .mlb: slug = "mlb"
+        case .ncaafb: slug = "college-football"
+        case .ncaamb: slug = "mens-college-basketball"
+        case .mls: slug = "mls"
+        }
+        return URL(string: "https://a.espncdn.com/combiner/i?img=/i/leagues/500/\(slug).png")
+    }
+
     var triggers: [TriggerType] {
         switch self {
         case .nba: [.pointsScored, .turnover, .technicalFoul, .ejection, .gameWinner, .threePointer, .block, .steal, .dunk, .teamWin, .teamLoss]
@@ -272,16 +292,28 @@ enum SubscriptionType: String, Codable {
 }
 
 enum DeliveryMethod: String, Codable, CaseIterable, Identifiable {
-    case push, sms, both
+    case push, sms, tweet
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
         case .push: "Push Notification"
-        case .sms: "SMS"
-        case .both: "Push + SMS"
+        case .sms: "SMS Text"
+        case .tweet: "Tag on X"
         }
+    }
+
+    var icon: String {
+        switch self {
+        case .push: "bell.fill"
+        case .sms: "message.fill"
+        case .tweet: "bird"
+        }
+    }
+
+    var requiresContact: Bool {
+        self == .sms || self == .tweet
     }
 }
 
