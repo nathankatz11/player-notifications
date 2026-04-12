@@ -3,7 +3,7 @@
  * Matches ESPN plays to user subscriptions and dispatches notifications.
  */
 
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "./db";
 import { subscriptions, alerts } from "./db/schema";
 import { sendPushToUser } from "./apns";
@@ -188,6 +188,88 @@ export async function matchAndAlert(
     // Send SMS (premium only — twilio.ts checks plan)
     if (sub.deliveryMethod === "sms" || sub.deliveryMethod === "both") {
       await sendSMSToUser(sub.userId, description);
+    }
+
+    dispatched++;
+  }
+
+  return dispatched;
+}
+
+/**
+ * Dispatch team_win / team_loss alerts for a just-finished game.
+ * Dedupes via the alerts table so repeat polls after the final don't re-fire.
+ */
+export async function dispatchTeamResult(
+  event: ESPNEvent,
+  league: League
+): Promise<number> {
+  const comp = event.competitions?.[0];
+  if (!comp || event.status?.type?.state !== "post") return 0;
+
+  const teamIds = comp.competitors.map((c) => c.team.id);
+  if (teamIds.length === 0) return 0;
+
+  const candidates = await db
+    .select()
+    .from(subscriptions)
+    .where(
+      and(
+        inArray(subscriptions.entityId, teamIds),
+        inArray(subscriptions.trigger, ["team_win", "team_loss"]),
+        eq(subscriptions.active, true)
+      )
+    );
+
+  if (candidates.length === 0) return 0;
+
+  const home = comp.competitors.find((c) => c.homeAway === "home");
+  const away = comp.competitors.find((c) => c.homeAway === "away");
+  const scoreline =
+    home && away
+      ? `${away.team.abbreviation} ${away.score}, ${home.team.abbreviation} ${home.score}`
+      : "";
+  const emoji = LEAGUE_EMOJI[league] ?? "🏅";
+
+  let dispatched = 0;
+
+  for (const sub of candidates) {
+    if (!matchesTeamResult(event, sub)) continue;
+
+    const [existing] = await db
+      .select({ id: alerts.id })
+      .from(alerts)
+      .where(and(eq(alerts.subscriptionId, sub.id), eq(alerts.gameId, event.id)))
+      .limit(1);
+    if (existing) continue;
+
+    const team = comp.competitors.find((c) => c.team.id === sub.entityId);
+    const teamName = team?.team.displayName ?? "Team";
+    const label = sub.trigger === "team_win" ? "WIN" : "LOSS";
+    const verb = sub.trigger === "team_win" ? "won" : "lost";
+    const suffix = scoreline ? ` ${scoreline} | Final` : " | Final";
+    const message = `${emoji} ${label} — ${teamName} ${verb}.${suffix}`;
+
+    const [alertRow] = await db
+      .insert(alerts)
+      .values({
+        subscriptionId: sub.id,
+        userId: sub.userId,
+        message,
+        deliveryMethod: sub.deliveryMethod ?? "push",
+        gameId: event.id,
+        eventDescription: `team_result:${sub.trigger}`,
+      })
+      .returning();
+
+    if (sub.deliveryMethod === "push" || sub.deliveryMethod === "both") {
+      await sendPushToUser(sub.userId, message, {
+        subscriptionId: sub.id,
+        alertId: alertRow?.id,
+      });
+    }
+    if (sub.deliveryMethod === "sms" || sub.deliveryMethod === "both") {
+      await sendSMSToUser(sub.userId, message);
     }
 
     dispatched++;

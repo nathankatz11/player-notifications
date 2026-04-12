@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { games } from "@/lib/db/schema";
-import { anyLiveGames, fetchScoreboard, fetchGameSummary, type League, type ESPNPlay } from "@/lib/espn";
-import { matchAndAlert } from "@/lib/alerts";
+import {
+  anyLiveGames,
+  fetchScoreboard,
+  fetchGameSummary,
+  type League,
+  type ESPNPlay,
+  type ESPNEvent,
+} from "@/lib/espn";
+import { matchAndAlert, dispatchTeamResult } from "@/lib/alerts";
 import { log } from "@/lib/logger";
 
 const ACTIVE_LEAGUES: League[] = ["nba", "nfl", "nhl", "mlb", "ncaafb", "ncaamb", "mls"];
@@ -23,12 +30,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Fast path: skip the expensive per-game polling when nothing is live.
+  // Fast path: skip the expensive per-game polling when nothing is live AND
+  // there are no games we previously saw live that still need finalization.
   const liveCheckStart = Date.now();
   const hasLive = await anyLiveGames();
   const anyLiveGamesTookMs = Date.now() - liveCheckStart;
 
+  let pendingFinalization = 0;
   if (!hasLive) {
+    const pending = await db
+      .select({ id: games.id })
+      .from(games)
+      .where(eq(games.status, "in"));
+    pendingFinalization = pending.length;
+  }
+
+  if (!hasLive && pendingFinalization === 0) {
     const duration_ms = Date.now() - startedAt;
     log.info("cron.poll", {
       route: "cron/poll",
@@ -78,44 +95,64 @@ export async function GET(req: NextRequest) {
 
 async function pollLeague(league: League): Promise<number> {
   const scoreboard = await fetchScoreboard(league);
-  const liveGames = scoreboard.events.filter((e) => e.status.type.state === "in");
 
-  if (liveGames.length === 0) return 0;
+  // Games we previously saw live but may not yet have finalized.
+  const stored = await db
+    .select({ id: games.id, status: games.status })
+    .from(games)
+    .where(and(eq(games.league, league), eq(games.status, "in")));
+  const pendingIds = new Set(stored.map((g) => g.id));
+
+  // Process live games (for play-by-play) AND just-finished games we stored as
+  // live (so team_win / team_loss fires once on the transition to final).
+  const toProcess = scoreboard.events.filter((e) => {
+    const state = e.status.type.state;
+    if (state === "in") return true;
+    if (state === "post" && pendingIds.has(e.id)) return true;
+    return false;
+  });
+
+  if (toProcess.length === 0) return 0;
 
   let alerts = 0;
-
-  for (const game of liveGames) {
-    alerts += await processGame(league, game.id);
+  for (const game of toProcess) {
+    alerts += await processGame(league, game);
   }
 
   return alerts;
 }
 
-async function processGame(league: League, gameId: string): Promise<number> {
+async function processGame(league: League, event: ESPNEvent): Promise<number> {
+  const gameId = event.id;
+  const state = event.status.type.state;
+
   // Get stored game state
   const [gameState] = await db.select().from(games).where(eq(games.id, gameId));
   const lastPlayId = gameState?.lastPlayId ?? "";
 
   // Fetch latest plays
   const plays = await fetchGameSummary(league, gameId);
-  if (plays.length === 0) return 0;
 
-  // Find new plays since last checkpoint
-  const lastPlayIndex = lastPlayId
-    ? plays.findIndex((p: ESPNPlay) => p.id === lastPlayId)
-    : -1;
-
-  const newPlays = lastPlayIndex === -1 ? plays : plays.slice(lastPlayIndex + 1);
-  if (newPlays.length === 0) return 0;
-
-  // Process through alert engine
   let dispatched = 0;
-  for (const play of newPlays) {
-    dispatched += await matchAndAlert(play, gameId, league);
+
+  if (plays.length > 0) {
+    const lastPlayIndex = lastPlayId
+      ? plays.findIndex((p: ESPNPlay) => p.id === lastPlayId)
+      : -1;
+    const newPlays = lastPlayIndex === -1 ? plays : plays.slice(lastPlayIndex + 1);
+
+    for (const play of newPlays) {
+      dispatched += await matchAndAlert(play, gameId, league, event);
+    }
   }
 
-  // Update checkpoint
-  const latestPlayId = plays[plays.length - 1].id;
+  // Fire team_win / team_loss on transition to final. Dedupe lives inside
+  // dispatchTeamResult via the alerts table.
+  if (state === "post") {
+    dispatched += await dispatchTeamResult(event, league);
+  }
+
+  const latestPlayId = plays.length > 0 ? plays[plays.length - 1].id : lastPlayId;
   await db
     .insert(games)
     .values({
@@ -123,14 +160,14 @@ async function processGame(league: League, gameId: string): Promise<number> {
       league,
       homeTeam: "",
       awayTeam: "",
-      status: "in",
+      status: state === "post" ? "post" : "in",
       lastPolledAt: new Date(),
       lastPlayId: latestPlayId,
     })
     .onConflictDoUpdate({
       target: games.id,
       set: {
-        status: "in",
+        status: state === "post" ? "post" : "in",
         lastPolledAt: new Date(),
         lastPlayId: latestPlayId,
       },
