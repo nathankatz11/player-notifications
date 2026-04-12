@@ -64,27 +64,33 @@ struct AlertHistoryView: View {
     /// Resolves a pending deep-link subscription id into a local `Subscription`
     /// and pushes `AlertDetailView`. If the subscription map hasn't been
     /// populated yet, reloads alerts once and retries before giving up.
+    ///
+    /// Auth gate: if unauthenticated, leaves the id pending. The shared
+    /// `DeepLinkCoordinator` keeps the request alive across the sign-in flow.
+    @MainActor
     private func consumePendingDeepLink() async {
         guard let pendingId = DeepLinkCoordinator.shared.pendingSubscriptionId else {
             return
         }
 
+        // Not signed in yet — keep the id pending so it's re-driven after auth.
+        guard AuthService.shared.currentUserId != nil else { return }
+
         if let match = viewModel.subscriptionsById[pendingId] {
-            _ = DeepLinkCoordinator.shared.consume()
             deepLinkTarget = match
+            _ = DeepLinkCoordinator.shared.consume()
             return
         }
 
         await viewModel.loadAlerts()
         if let match = viewModel.subscriptionsById[pendingId] {
-            _ = DeepLinkCoordinator.shared.consume()
             deepLinkTarget = match
         } else {
             // Couldn't resolve — surface a toast and clear so we don't loop
             // forever.
             DeepLinkCoordinator.shared.reportFailure("This alert's subscription is no longer available.")
-            _ = DeepLinkCoordinator.shared.consume()
         }
+        _ = DeepLinkCoordinator.shared.consume()
     }
 
     // MARK: - Filter Menu

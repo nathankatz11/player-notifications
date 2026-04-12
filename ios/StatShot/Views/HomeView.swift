@@ -185,29 +185,39 @@ struct HomeView: View {
     /// `NotificationService.didReceive`) to a local `Subscription` and opens
     /// the detail sheet. If the subscriptions list hasn't loaded yet (or the
     /// id isn't in it — e.g. a stale subscription), reloads once and retries.
+    ///
+    /// Auth gate: if the user isn't signed in yet (cold start, auth still in
+    /// flight, or signed-out user who tapped a stale push), we leave the
+    /// pending id in place. `ContentView` observes `isAuthenticated` and will
+    /// re-drive this path once sign-in completes. Consuming here would drop
+    /// the tap silently.
+    @MainActor
     private func consumePendingDeepLink() async {
         guard let pendingId = DeepLinkCoordinator.shared.pendingSubscriptionId else {
             return
         }
 
+        // Not signed in yet — keep the id pending. We'll be called again from
+        // ContentView's auth observer once sign-in completes.
+        guard AuthService.shared.currentUserId != nil else { return }
+
         if let match = viewModel.subscriptions.first(where: { $0.id == pendingId }) {
-            _ = DeepLinkCoordinator.shared.consume()
             selectedSubscription = match
+            _ = DeepLinkCoordinator.shared.consume()
             return
         }
 
-        // Not in the map yet — reload and retry once.
+        // Not in the list yet — reload and retry once.
         await viewModel.loadSubscriptions()
         if let match = viewModel.subscriptions.first(where: { $0.id == pendingId }) {
-            _ = DeepLinkCoordinator.shared.consume()
             selectedSubscription = match
         } else {
             // Subscription couldn't be resolved (deleted?). Surface a toast so
             // the user isn't confused by a silently-dropped tap, then clear the
             // pending id so we don't keep retrying forever.
             DeepLinkCoordinator.shared.reportFailure("This alert's subscription is no longer available.")
-            _ = DeepLinkCoordinator.shared.consume()
         }
+        _ = DeepLinkCoordinator.shared.consume()
     }
 
     // MARK: - Alert Counts

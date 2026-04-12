@@ -146,48 +146,107 @@ final class APIService: Sendable {
     // MARK: - HTTP Helpers
 
     private func get(_ path: String) async throws -> Data {
-        let url = URL(string: "\(baseURL)\(path)")!
-        let (data, response) = try await URLSession.shared.data(from: url)
-        try validateResponse(response, data: data)
-        return data
+        try await withRetry(path: path) {
+            let url = URL(string: "\(self.baseURL)\(path)")!
+            let (data, response) = try await URLSession.shared.data(from: url)
+            try self.validateResponse(response, data: data)
+            return data
+        }
     }
 
     private func post(_ path: String, body: some Encodable) async throws -> Data {
-        var request = URLRequest(url: URL(string: "\(baseURL)\(path)")!)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(body)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validateResponse(response, data: data)
-        return data
+        let httpBody = try JSONEncoder().encode(body)
+        // POST is not retried on HTTP 5xx — the write may have landed server-side
+        // and we don't want to duplicate state (e.g. subscriptions).
+        return try await withRetry(path: path, retryOn5xx: false) {
+            var request = URLRequest(url: URL(string: "\(self.baseURL)\(path)")!)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = httpBody
+            let (data, response) = try await URLSession.shared.data(for: request)
+            try self.validateResponse(response, data: data)
+            return data
+        }
     }
 
     private func put(_ path: String, body: some Encodable) async throws -> Data {
-        var request = URLRequest(url: URL(string: "\(baseURL)\(path)")!)
-        request.httpMethod = "PUT"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(body)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validateResponse(response, data: data)
-        return data
+        let httpBody = try JSONEncoder().encode(body)
+        return try await withRetry(path: path) {
+            var request = URLRequest(url: URL(string: "\(self.baseURL)\(path)")!)
+            request.httpMethod = "PUT"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = httpBody
+            let (data, response) = try await URLSession.shared.data(for: request)
+            try self.validateResponse(response, data: data)
+            return data
+        }
     }
 
     private func patch(_ path: String, body: some Encodable) async throws -> Data {
-        var request = URLRequest(url: URL(string: "\(baseURL)\(path)")!)
-        request.httpMethod = "PATCH"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(body)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validateResponse(response, data: data)
-        return data
+        let httpBody = try JSONEncoder().encode(body)
+        return try await withRetry(path: path) {
+            var request = URLRequest(url: URL(string: "\(self.baseURL)\(path)")!)
+            request.httpMethod = "PATCH"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = httpBody
+            let (data, response) = try await URLSession.shared.data(for: request)
+            try self.validateResponse(response, data: data)
+            return data
+        }
     }
 
     private func delete(_ path: String) async throws -> Data {
-        var request = URLRequest(url: URL(string: "\(baseURL)\(path)")!)
-        request.httpMethod = "DELETE"
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validateResponse(response, data: data)
-        return data
+        try await withRetry(path: path) {
+            var request = URLRequest(url: URL(string: "\(self.baseURL)\(path)")!)
+            request.httpMethod = "DELETE"
+            let (data, response) = try await URLSession.shared.data(for: request)
+            try self.validateResponse(response, data: data)
+            return data
+        }
+    }
+
+    // MARK: - Retry
+
+    /// Retries transient failures up to `attempts` times with exponential backoff
+    /// (200ms then 800ms). Set `retryOn5xx` to false for non-idempotent verbs (POST)
+    /// where a 5xx might mean the write landed and a retry would duplicate state.
+    ///
+    /// TODO: Parse `Retry-After` header on HTTP 429 instead of using the fixed
+    /// 800ms backoff. Would require surfacing the `HTTPURLResponse` out of the
+    /// operation closure.
+    private func withRetry<T>(
+        path: String,
+        attempts: Int = 3,
+        retryOn5xx: Bool = true,
+        _ operation: @Sendable () async throws -> T
+    ) async throws -> T {
+        var lastError: Error?
+        for attempt in 0..<attempts {
+            do {
+                return try await operation()
+            } catch let error where self.shouldRetry(error, retryOn5xx: retryOn5xx) && attempt < attempts - 1 {
+                lastError = error
+                print("[APIService] Retrying \(path) after \(error)")
+                let backoffMs = attempt == 0 ? 200 : 800
+                try? await Task.sleep(for: .milliseconds(backoffMs))
+            } catch {
+                throw error
+            }
+        }
+        throw lastError ?? APIError.invalidResponse
+    }
+
+    private func shouldRetry(_ error: Error, retryOn5xx: Bool) -> Bool {
+        if let api = error as? APIError, case .httpError(let code) = api {
+            if code == 429 { return true }
+            if retryOn5xx, code >= 500, code < 600 { return true }
+            return false
+        }
+        if let url = error as? URLError {
+            return [.timedOut, .cannotConnectToHost, .networkConnectionLost,
+                    .dnsLookupFailed, .notConnectedToInternet].contains(url.code)
+        }
+        return false
     }
 
     private func validateResponse(_ response: URLResponse, data: Data? = nil) throws {

@@ -69,6 +69,24 @@ struct ContentView: View {
                         selectedTab = 0
                     }
                 }
+                // When the user finishes signing in, if there's still a pending
+                // deep link (because `consumePendingDeepLink` deliberately
+                // didn't consume while unauthenticated), force the Alerts tab.
+                // This triggers HomeView's `.onChange` observer on the same
+                // pendingSubscriptionId, which now has auth and can resolve.
+                .onChange(of: authViewModel.isAuthenticated) { _, isAuthed in
+                    guard isAuthed,
+                          DeepLinkCoordinator.shared.pendingSubscriptionId != nil else { return }
+                    if selectedTab != 0 {
+                        selectedTab = 0
+                    }
+                    // Nudge HomeView: re-set the id so its `.onChange` fires
+                    // even if the value didn't change. We write the same value
+                    // back to retrigger observers.
+                    let id = DeepLinkCoordinator.shared.pendingSubscriptionId
+                    DeepLinkCoordinator.shared.pendingSubscriptionId = nil
+                    DeepLinkCoordinator.shared.pendingSubscriptionId = id
+                }
                 .task {
                     // Cold-start: the notification tap may have fired before this
                     // view mounted. If a deep link is already pending, switch to
