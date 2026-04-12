@@ -166,32 +166,36 @@ export interface PlayerDetails {
   headshotUrl: string | null;
 }
 
+const ESPN_CORE_BASE = "https://sports.core.api.espn.com/v2/sports";
+
 /**
  * Best-effort lookup of a player's current team ID and canonical headshot URL
- * via ESPN's athlete endpoint. One network call, two fields. Returns nulls on
- * any failure — callers should treat missing fields as "unknown" and proceed.
+ * via ESPN's core athlete endpoint. One network call, two fields. Returns
+ * nulls on any failure — callers should treat missing fields as "unknown".
  *
- * The ESPN `athlete.headshot.href` value is the URL ESPN itself uses on
- * espn.com and is more reliable than the combiner path we'd otherwise guess.
+ * `headshot.href` is the URL ESPN itself uses on espn.com and is more
+ * reliable than guessing at a combiner path. `team.$ref` is a URL, not an id,
+ * so we parse the trailing `/teams/{id}` segment out of it.
  */
 export async function fetchPlayerDetails(
   league: League,
   playerId: string
 ): Promise<PlayerDetails> {
-  const path = LEAGUE_PATHS[league];
+  // LEAGUE_PATHS is "sport/league" (e.g. "basketball/nba"); the core API
+  // wants "sport/leagues/league".
+  const [sport, lg] = LEAGUE_PATHS[league].split("/");
+  const url = `${ESPN_CORE_BASE}/${sport}/leagues/${lg}/athletes/${playerId}`;
   try {
-    const res = await fetch(`${ESPN_BASE}/${path}/athletes/${playerId}`);
+    const res = await fetch(url);
     if (!res.ok) return { teamId: null, headshotUrl: null };
     const data = await res.json();
 
-    const teamRaw =
-      data?.athlete?.team?.id ??
-      data?.team?.id ??
-      null;
-    const headshotRaw =
-      data?.athlete?.headshot?.href ??
-      data?.headshot?.href ??
-      null;
+    const headshotRaw = data?.headshot?.href ?? null;
+    const teamRef = data?.team?.$ref;
+    const teamMatch = typeof teamRef === "string"
+      ? teamRef.match(/\/teams\/(\d+)/)
+      : null;
+    const teamRaw = teamMatch?.[1] ?? null;
 
     return {
       teamId: teamRaw ? String(teamRaw) : null,
