@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { games } from "@/lib/db/schema";
 import { anyLiveGames, fetchScoreboard, fetchGameSummary, type League, type ESPNPlay } from "@/lib/espn";
 import { matchAndAlert } from "@/lib/alerts";
+import { log } from "@/lib/logger";
 
 const ACTIVE_LEAGUES: League[] = ["nba", "nfl", "nhl", "mlb", "ncaafb", "ncaamb", "mls"];
 
@@ -29,17 +30,15 @@ export async function GET(req: NextRequest) {
 
   if (!hasLive) {
     const duration_ms = Date.now() - startedAt;
-    console.log(
-      JSON.stringify({
-        route: "cron/poll",
-        skipped: true,
-        reason: "no_live_games",
-        anyLiveGamesTookMs,
-        duration_ms,
-        matched: 0,
-        sent: 0,
-      })
-    );
+    log.info("cron.poll", {
+      route: "cron/poll",
+      skipped: true,
+      reason: "no_live_games",
+      anyLiveGamesTookMs,
+      duration_ms,
+      matched: 0,
+      sent: 0,
+    });
     return Response.json(
       { skipped: true, reason: "no_live_games" },
       { status: 200 }
@@ -55,22 +54,20 @@ export async function GET(req: NextRequest) {
       results[league] = { alerts: leagueAlerts };
       totalAlerts += leagueAlerts;
     } catch (error) {
-      console.error(`Error polling ${league}:`, error);
+      log.error("cron.poll.league_failed", { league, error: String(error) });
       results[league] = { error: String(error) };
     }
   }
 
   const duration_ms = Date.now() - startedAt;
-  console.log(
-    JSON.stringify({
-      route: "cron/poll",
-      skipped: false,
-      anyLiveGamesTookMs,
-      duration_ms,
-      matched: totalAlerts,
-      sent: totalAlerts,
-    })
-  );
+  log.info("cron.poll", {
+    route: "cron/poll",
+    skipped: false,
+    anyLiveGamesTookMs,
+    duration_ms,
+    matched: totalAlerts,
+    sent: totalAlerts,
+  });
 
   return NextResponse.json({
     polled: ACTIVE_LEAGUES.length,

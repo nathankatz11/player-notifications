@@ -31,7 +31,9 @@ final class SubscriptionViewModel {
         do {
             subscriptions = try await APIService.shared.getSubscriptions(userId: userId)
         } catch {
-            errorMessage = error.localizedDescription
+            let friendly = friendlyMessage(for: error)
+            errorMessage = friendly
+            AppErrorCoordinator.shared.report(friendly)
         }
     }
 
@@ -43,7 +45,9 @@ final class SubscriptionViewModel {
             teams = try await APIService.shared.fetchTeams(league: selectedLeague.rawValue)
         } catch {
             teams = []
-            errorMessage = error.localizedDescription
+            let friendly = friendlyMessage(for: error)
+            errorMessage = friendly
+            AppErrorCoordinator.shared.report(friendly)
         }
     }
 
@@ -70,7 +74,9 @@ final class SubscriptionViewModel {
                 league: selectedLeague.rawValue
             )
         } catch {
-            errorMessage = error.localizedDescription
+            let friendly = friendlyMessage(for: error)
+            errorMessage = friendly
+            AppErrorCoordinator.shared.report(friendly)
         }
     }
 
@@ -100,7 +106,9 @@ final class SubscriptionViewModel {
             _ = try await APIService.shared.createSubscription(params)
             await loadSubscriptions()
         } catch {
-            errorMessage = error.localizedDescription
+            let friendly = friendlyMessage(for: error)
+            errorMessage = friendly
+            AppErrorCoordinator.shared.report(friendly)
         }
     }
 
@@ -114,7 +122,9 @@ final class SubscriptionViewModel {
                 subscriptions[index].active.toggle()
             }
         } catch {
-            errorMessage = error.localizedDescription
+            let friendly = friendlyMessage(for: error)
+            errorMessage = friendly
+            AppErrorCoordinator.shared.report(friendly)
         }
     }
 
@@ -123,7 +133,9 @@ final class SubscriptionViewModel {
             try await APIService.shared.deleteSubscription(id: subscription.id)
             subscriptions.removeAll { $0.id == subscription.id }
         } catch {
-            errorMessage = error.localizedDescription
+            let friendly = friendlyMessage(for: error)
+            errorMessage = friendly
+            AppErrorCoordinator.shared.report(friendly)
         }
     }
 }

@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { fetchScoreboard, type League } from "@/lib/espn";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const ALL_LEAGUES: League[] = ["nba", "nfl", "nhl", "mlb", "ncaafb", "ncaamb", "mls"];
 
@@ -7,7 +8,13 @@ const ALL_LEAGUES: League[] = ["nba", "nfl", "nhl", "mlb", "ncaafb", "ncaamb", "
  * GET /api/scores
  * Fetch current scores across all leagues.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const limited = await enforceRateLimit(req, "scores", {
+    limit: 60,
+    windowMs: 60_000,
+  });
+  if (limited) return limited;
+
   const results: Record<string, unknown> = {};
 
   await Promise.allSettled(

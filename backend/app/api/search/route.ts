@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchEntities } from "@/lib/espn";
 import type { League } from "@/lib/espn";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const VALID_LEAGUES = new Set<string>(["nba", "nfl", "nhl", "mlb", "ncaafb", "ncaamb", "mls"]);
 
@@ -9,6 +10,12 @@ const VALID_LEAGUES = new Set<string>(["nba", "nfl", "nhl", "mlb", "ncaafb", "nc
  * Search for players and teams via ESPN.
  */
 export async function GET(req: NextRequest) {
+  const limited = await enforceRateLimit(req, "search", {
+    limit: 30,
+    windowMs: 60_000,
+  });
+  if (limited) return limited;
+
   const q = req.nextUrl.searchParams.get("q");
   const league = req.nextUrl.searchParams.get("league");
 

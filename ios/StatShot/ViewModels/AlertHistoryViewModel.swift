@@ -59,7 +59,9 @@ final class AlertHistoryViewModel {
             }
             self.subscriptionsById = map
         } catch {
-            errorMessage = error.localizedDescription
+            let friendly = friendlyMessage(for: error)
+            errorMessage = friendly
+            AppErrorCoordinator.shared.report(friendly)
         }
     }
 
@@ -85,7 +87,9 @@ final class AlertHistoryViewModel {
             self.alerts.append(contentsOf: newRows)
             self.nextCursor = page.nextCursor
         } catch {
-            errorMessage = error.localizedDescription
+            let friendly = friendlyMessage(for: error)
+            errorMessage = friendly
+            AppErrorCoordinator.shared.report(friendly)
         }
     }
 
@@ -148,7 +152,9 @@ final class AlertHistoryViewModel {
             subscriptionsById[subscription.id] = updated
             return active
         } catch {
-            errorMessage = error.localizedDescription
+            let friendly = friendlyMessage(for: error)
+            errorMessage = friendly
+            AppErrorCoordinator.shared.report(friendly)
             return nil
         }
     }

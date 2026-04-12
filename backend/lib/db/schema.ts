@@ -5,6 +5,7 @@ import {
   boolean,
   pgEnum,
   uuid,
+  integer,
 } from "drizzle-orm/pg-core";
 
 // Enums
@@ -49,6 +50,13 @@ export const alerts = pgTable("alerts", {
   deliveryMethod: text("delivery_method").notNull(),
   gameId: text("game_id").notNull(),
   eventDescription: text("event_description").notNull(),
+});
+
+// Rate limits (fixed-window counter keyed by caller identity + bucket name)
+export const rateLimits = pgTable("rate_limits", {
+  key: text("key").primaryKey(),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+  count: integer("count").notNull().default(0),
 });
 
 // Games (tracks polling state)

@@ -3,6 +3,8 @@
  * No API key required. Polling interval: every 15-20s during live games.
  */
 
+import { log } from "./logger";
+
 const ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports";
 
 export type League = "nba" | "nfl" | "nhl" | "mlb" | "ncaafb" | "ncaamb" | "mls";
@@ -97,7 +99,7 @@ export async function anyLiveGames(): Promise<boolean> {
       } catch (err) {
         // On ESPN error, bias toward polling (return true) so we don't silently
         // miss alerts due to a transient scoreboard failure.
-        console.error(`anyLiveGames: scoreboard fetch failed for ${league}:`, err);
+        log.error("espn.scoreboard_fetch_failed", { league, error: String(err) });
         return true;
       }
     })

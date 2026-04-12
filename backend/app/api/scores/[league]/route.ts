@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchScoreboard, type League } from "@/lib/espn";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const VALID_LEAGUES = new Set<string>(["nba", "nfl", "nhl", "mlb", "ncaafb", "ncaamb", "mls"]);
 
@@ -8,9 +9,15 @@ const VALID_LEAGUES = new Set<string>(["nba", "nfl", "nhl", "mlb", "ncaafb", "nc
  * Fetch current scores for a specific league.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ league: string }> }
 ) {
+  const limited = await enforceRateLimit(req, "scores", {
+    limit: 60,
+    windowMs: 60_000,
+  });
+  if (limited) return limited;
+
   const { league } = await params;
 
   if (!VALID_LEAGUES.has(league)) {

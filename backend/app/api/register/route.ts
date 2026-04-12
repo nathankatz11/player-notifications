@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -14,6 +15,12 @@ const registerSchema = z.object({
  * Register a device with an APNs token. Creates or updates the user.
  */
 export async function POST(req: NextRequest) {
+  const limited = await enforceRateLimit(req, "register", {
+    limit: 10,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return limited;
+
   const json = await req.json().catch(() => null);
   const result = registerSchema.safeParse(json);
   if (!result.success) {

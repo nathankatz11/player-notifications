@@ -10,6 +10,10 @@ import Observation
 /// the cold-start case: `didReceive` can fire before any view has mounted, and
 /// the id waits here until a view observes `pendingSubscriptionId` and calls
 /// `consume()`.
+///
+/// User-visible failure messages (e.g. a deleted subscription couldn't be
+/// resolved) are now forwarded to `AppErrorCoordinator.shared` so the toast
+/// has a single owner shared with view-model error paths.
 @MainActor
 @Observable
 final class DeepLinkCoordinator {
@@ -19,12 +23,6 @@ final class DeepLinkCoordinator {
     /// Views observe this with `.onChange(of:)` and call `consume()` once
     /// they've navigated.
     var pendingSubscriptionId: String?
-
-    /// A user-visible error string shown as a toast when a deep link fails to
-    /// resolve (e.g. the referenced subscription was deleted before the user
-    /// tapped the notification). Views read this and render it above the UI;
-    /// it auto-clears on a timer.
-    var toastMessage: String?
 
     private init() {}
 
@@ -41,14 +39,9 @@ final class DeepLinkCoordinator {
     }
 
     /// Surface a user-visible failure message (e.g. "deep link couldn't
-    /// resolve"). Callers typically follow up by calling `consume()` to clear
-    /// the pending id.
+    /// resolve"). Routes to the shared app error toast. Callers typically
+    /// follow up by calling `consume()` to clear the pending id.
     func reportFailure(_ message: String) {
-        toastMessage = message
-    }
-
-    /// Clear the toast. Called by the auto-dismiss timer in the view layer.
-    func clearToast() {
-        toastMessage = nil
+        AppErrorCoordinator.shared.report(message)
     }
 }

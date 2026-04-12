@@ -3,6 +3,7 @@ import { eq, and, count } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { subscriptions, users } from "@/lib/db/schema";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const FREE_TIER_LIMIT = 10;
 
@@ -39,6 +40,12 @@ export async function GET(req: NextRequest) {
  * Create a new subscription. Enforces free tier limit (3 max).
  */
 export async function POST(req: NextRequest) {
+  const limited = await enforceRateLimit(req, "subscriptions:create", {
+    limit: 50,
+    windowMs: 60 * 60_000,
+  });
+  if (limited) return limited;
+
   const json = await req.json().catch(() => null);
   const result = createSubscriptionSchema.safeParse(json);
   if (!result.success) {

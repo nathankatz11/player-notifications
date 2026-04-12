@@ -20,6 +20,7 @@
 		535684E6D6CF0926AF60042A /* StatShotApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E24E60A6B44F65A3B15913F3 /* StatShotApp.swift */; };
 		5950868DC9D17F8588737DEF /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43C805ABE74D556008DA9ED8 /* HomeView.swift */; };
 		60DAE31B5BA20E0724E6397F /* AddAlertView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D9279201DDF6F818D4D9960 /* AddAlertView.swift */; };
+		6DE8EFDA1D608481DA661D9F /* AppErrorCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3470D7D4E55EF242F41F5F5 /* AppErrorCoordinator.swift */; };
 		7F3937E236EFB22BF5260286 /* AlertHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26F8FF2BFE2401DF2A59D205 /* AlertHistoryView.swift */; };
 		811E343DEAC7865293F0152A /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 037DAC762305A8D363A4A0C6 /* OnboardingView.swift */; };
 		96FF00524427D90591D2C6EB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F7E0D1BFC5F36CC639EF5F /* SettingsView.swift */; };
@@ -51,6 +52,7 @@
 		A15064294B5EF2B7228B6B9A /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		ACA3A752FAA21379A495654A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B2ECE6735A24CE63BFADB811 /* ToastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastView.swift; sourceTree = "<group>"; };
+		B3470D7D4E55EF242F41F5F5 /* AppErrorCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppErrorCoordinator.swift; sourceTree = "<group>"; };
 		C772C441BDA4EFC726B53DF3 /* DeepLinkCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkCoordinator.swift; sourceTree = "<group>"; };
 		D16C9990E01908BD5FDC16E1 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		D1AC6F250B4C14E2EE831F01 /* Subscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subscription.swift; sourceTree = "<group>"; };
@@ -149,6 +151,7 @@
 			isa = PBXGroup;
 			children = (
 				765BB5EAC4D67377DECF713C /* APIService.swift */,
+				B3470D7D4E55EF242F41F5F5 /* AppErrorCoordinator.swift */,
 				A15064294B5EF2B7228B6B9A /* AuthService.swift */,
 				C772C441BDA4EFC726B53DF3 /* DeepLinkCoordinator.swift */,
 				D16C9990E01908BD5FDC16E1 /* NotificationService.swift */,
@@ -231,6 +234,7 @@
 				7F3937E236EFB22BF5260286 /* AlertHistoryView.swift in Sources */,
 				DA3F97751FD3975F5E956433 /* AlertHistoryViewModel.swift in Sources */,
 				AFCE757F86B29ED1CA77FEDB /* AppDelegate.swift in Sources */,
+				6DE8EFDA1D608481DA661D9F /* AppErrorCoordinator.swift in Sources */,
 				3F8D4CE233FEBEA315B524EF /* AppIconView.swift in Sources */,
 				0EBFDDA345FB3F9D027ABAFA /* AuthService.swift in Sources */,
 				C5E773CBCEA6BB14304F93E8 /* AuthViewModel.swift in Sources */,

@@ -16,6 +16,7 @@
 
 import crypto from "node:crypto";
 import http2 from "node:http2";
+import { log } from "./logger";
 
 interface APNsPayload {
   title: string;
@@ -231,11 +232,13 @@ export async function sendPushNotification(
   const keyBase64 = process.env.APNS_KEY_BASE64;
 
   if (!keyId || !teamId || !bundleId || !keyBase64) {
-    console.warn("[APNs] Missing configuration — push notification skipped");
-    console.log(
-      `[APNs STUB] → ${deviceToken}: ${payload.title} — ${payload.body}` +
-        (payload.subscriptionId ? ` (subscriptionId=${payload.subscriptionId})` : "")
-    );
+    log.warn("apns.missing_config", {
+      deviceToken,
+      title: payload.title,
+      body: payload.body,
+      subscriptionId: payload.subscriptionId,
+      alertId: payload.alertId,
+    });
     return false;
   }
 
@@ -243,7 +246,7 @@ export async function sendPushNotification(
   try {
     jwt = buildJwt(keyId, teamId, keyBase64);
   } catch (err) {
-    console.error("[APNs] Failed to build JWT:", err);
+    log.error("apns.jwt_build_failed", { error: String(err) });
     return false;
   }
 
@@ -254,7 +257,7 @@ export async function sendPushNotification(
   try {
     response = await postToApns(host, deviceToken, jwt, bundleId, jsonBody);
   } catch (err) {
-    console.error("[APNs] HTTP/2 request failed:", err);
+    log.error("apns.http2_request_failed", { error: String(err) });
     return false;
   }
 
@@ -274,25 +277,42 @@ export async function sendPushNotification(
   }
 
   if (statusCode === 410 || reason === "Unregistered" || reason === "BadDeviceToken") {
-    console.warn(
-      `[APNs] Dead token (${statusCode} ${reason || "Unregistered"}) for device ${deviceToken}` +
-        (payload.subscriptionId ? ` subscriptionId=${payload.subscriptionId}` : "") +
-        (payload.alertId ? ` alertId=${payload.alertId}` : "")
-    );
+    // Dead token — null it out in DB so we stop trying.
+    try {
+      const { db } = await import("./db");
+      const { users } = await import("./db/schema");
+      const { eq } = await import("drizzle-orm");
+      await db
+        .update(users)
+        .set({ apnsToken: null })
+        .where(eq(users.apnsToken, deviceToken));
+    } catch (err) {
+      log.error("apns.token_revoke_failed", {
+        error: String(err),
+        deviceToken,
+      });
+    }
+    log.warn("apns.token_revoked", {
+      deviceToken,
+      statusCode,
+      reason: reason || "Unregistered",
+      subscriptionId: payload.subscriptionId,
+      alertId: payload.alertId,
+    });
     return false;
   }
 
   if (statusCode === 429) {
-    console.warn(`[APNs] Rate limited (429 ${reason}) for device ${deviceToken}`);
+    log.warn("apns.rate_limited", { deviceToken, reason });
     return false;
   }
 
   if (statusCode >= 500) {
-    console.warn(`[APNs] Transient error ${statusCode} ${reason} — caller may retry`);
+    log.warn("apns.transient_error", { statusCode, reason });
     return false;
   }
 
-  console.warn(`[APNs] Request rejected: ${statusCode} ${reason} body=${body}`);
+  log.warn("apns.request_rejected", { statusCode, reason, body });
   return false;
 }
 
@@ -316,7 +336,7 @@ export async function sendPushToUser(
   const [user] = await db.select().from(users).where(eq(users.id, userId));
 
   if (!user?.apnsToken) {
-    console.warn(`[APNs] No token for user ${userId}`);
+    log.warn("apns.no_token", { userId });
     return false;
   }
 

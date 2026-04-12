@@ -78,21 +78,21 @@ struct ContentView: View {
                     }
                 }
 
-                if let message = DeepLinkCoordinator.shared.toastMessage {
+                if let message = AppErrorCoordinator.shared.message {
                     ToastView(message: message)
                         .padding(.top, 8)
                         .transition(.move(edge: .top).combined(with: .opacity))
                         .onTapGesture {
-                            DeepLinkCoordinator.shared.clearToast()
+                            AppErrorCoordinator.shared.clear()
                         }
                 }
             }
-            .animation(.spring(response: 0.35), value: DeepLinkCoordinator.shared.toastMessage)
-            .onChange(of: DeepLinkCoordinator.shared.toastMessage) { _, newValue in
+            .animation(.spring(response: 0.35), value: AppErrorCoordinator.shared.message)
+            .onChange(of: AppErrorCoordinator.shared.message) { _, newValue in
                 guard newValue != nil else { return }
                 Task {
                     try? await Task.sleep(for: .seconds(3))
-                    DeepLinkCoordinator.shared.clearToast()
+                    AppErrorCoordinator.shared.clear()
                 }
             }
         }
