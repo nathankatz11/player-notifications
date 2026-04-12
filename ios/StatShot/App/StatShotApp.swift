@@ -82,6 +82,9 @@ struct ContentView: View {
                     ToastView(message: message)
                         .padding(.top, 8)
                         .transition(.move(edge: .top).combined(with: .opacity))
+                        .onTapGesture {
+                            DeepLinkCoordinator.shared.clearToast()
+                        }
                 }
             }
             .animation(.spring(response: 0.35), value: DeepLinkCoordinator.shared.toastMessage)
