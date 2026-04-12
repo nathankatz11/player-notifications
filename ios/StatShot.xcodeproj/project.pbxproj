@@ -28,6 +28,7 @@
 		DA3F97751FD3975F5E956433 /* AlertHistoryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FE312C2B4909F302AEF8A3 /* AlertHistoryViewModel.swift */; };
 		DE31A329E0A77DB60DE3EA9D /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B2CD9BE475CE2AB13E3CD18 /* User.swift */; };
 		E1ED74F6C59FCC0C66C425B5 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D16C9990E01908BD5FDC16E1 /* NotificationService.swift */; };
+		F0DL00000000000000000001 /* DeepLinkCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0DL00000000000000000002 /* DeepLinkCoordinator.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -47,6 +48,7 @@
 		9F1D4945D4A5B7BD6053D0C6 /* ScoreFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreFeedView.swift; sourceTree = "<group>"; };
 		A15064294B5EF2B7228B6B9A /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		D16C9990E01908BD5FDC16E1 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		F0DL00000000000000000002 /* DeepLinkCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkCoordinator.swift; sourceTree = "<group>"; };
 		D1AC6F250B4C14E2EE831F01 /* Subscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subscription.swift; sourceTree = "<group>"; };
 		D56876D8FB3B59A941CD3929 /* AlertDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertDetailView.swift; sourceTree = "<group>"; };
 		D80379A3686A24888760DC53 /* StripeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripeService.swift; sourceTree = "<group>"; };
@@ -134,6 +136,7 @@
 			children = (
 				765BB5EAC4D67377DECF713C /* APIService.swift */,
 				A15064294B5EF2B7228B6B9A /* AuthService.swift */,
+				F0DL00000000000000000002 /* DeepLinkCoordinator.swift */,
 				D16C9990E01908BD5FDC16E1 /* NotificationService.swift */,
 				D80379A3686A24888760DC53 /* StripeService.swift */,
 			);
@@ -217,6 +220,7 @@
 				0EBFDDA345FB3F9D027ABAFA /* AuthService.swift in Sources */,
 				C5E773CBCEA6BB14304F93E8 /* AuthViewModel.swift in Sources */,
 				5950868DC9D17F8588737DEF /* HomeView.swift in Sources */,
+				F0DL00000000000000000001 /* DeepLinkCoordinator.swift in Sources */,
 				E1ED74F6C59FCC0C66C425B5 /* NotificationService.swift in Sources */,
 				811E343DEAC7865293F0152A /* OnboardingView.swift in Sources */,
 				3B2BB6A2871607EFD8D7549F /* PaywallView.swift in Sources */,

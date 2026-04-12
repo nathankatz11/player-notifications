@@ -11,6 +11,7 @@ struct StatShotApp: App {
                 ContentView()
                     .environment(authViewModel)
                     .task {
+                        NotificationService.shared.registerDelegate()
                         authViewModel.checkExistingAuth()
                         NotificationService.shared.requestAuthorization()
                         if !authViewModel.isAuthenticated {
@@ -35,26 +36,45 @@ struct StatShotApp: App {
 
 struct ContentView: View {
     @Environment(AuthViewModel.self) private var authViewModel
+    @State private var selectedTab: Int = 0
 
     var body: some View {
         if authViewModel.isLoading && !authViewModel.isAuthenticated {
             ProgressView("Setting up...")
         } else {
-            TabView {
+            TabView(selection: $selectedTab) {
                 HomeView()
                     .tabItem {
                         Label("Alerts", systemImage: "bell.fill")
                     }
+                    .tag(0)
 
                 ScoreFeedView()
                     .tabItem {
                         Label("Scores", systemImage: "sportscourt.fill")
                     }
+                    .tag(1)
 
                 SettingsView()
                     .tabItem {
                         Label("Settings", systemImage: "gear")
                     }
+                    .tag(2)
+            }
+            // If a push tap lands us here (or we're already here), jump to the
+            // Alerts tab so HomeView can pick up the pending deep link.
+            .onChange(of: DeepLinkCoordinator.shared.pendingSubscriptionId) { _, newValue in
+                if newValue != nil && selectedTab != 0 {
+                    selectedTab = 0
+                }
+            }
+            .task {
+                // Cold-start: the notification tap may have fired before this
+                // view mounted. If a deep link is already pending, switch to
+                // the Alerts tab so HomeView can consume it.
+                if DeepLinkCoordinator.shared.pendingSubscriptionId != nil {
+                    selectedTab = 0
+                }
             }
         }
     }

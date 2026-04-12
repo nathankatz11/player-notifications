@@ -141,25 +141,32 @@ export async function matchAndAlert(
   let dispatched = 0;
 
   for (const sub of matchingSubs) {
+    // Insert the alert row first so we have an `alertId` to embed in the push
+    // payload (enables iOS deep-linking from the notification tap).
+    const [alertRow] = await db
+      .insert(alerts)
+      .values({
+        subscriptionId: sub.id,
+        userId: sub.userId,
+        message: description,
+        deliveryMethod: sub.deliveryMethod ?? "push",
+        gameId,
+        eventDescription: play.text,
+      })
+      .returning();
+
     // Send push notification
     if (sub.deliveryMethod === "push" || sub.deliveryMethod === "both") {
-      await sendPushToUser(sub.userId, description);
+      await sendPushToUser(sub.userId, description, {
+        subscriptionId: sub.id,
+        alertId: alertRow?.id,
+      });
     }
 
     // Send SMS (premium only — twilio.ts checks plan)
     if (sub.deliveryMethod === "sms" || sub.deliveryMethod === "both") {
       await sendSMSToUser(sub.userId, description);
     }
-
-    // Log the alert
-    await db.insert(alerts).values({
-      subscriptionId: sub.id,
-      userId: sub.userId,
-      message: description,
-      deliveryMethod: sub.deliveryMethod ?? "push",
-      gameId,
-      eventDescription: play.text,
-    });
 
     dispatched++;
   }

@@ -51,9 +51,16 @@ struct HomeView: View {
                     }
                 }
             }
+            .onChange(of: DeepLinkCoordinator.shared.pendingSubscriptionId) { _, newValue in
+                guard newValue != nil else { return }
+                Task { await consumePendingDeepLink() }
+            }
             .task {
                 await viewModel.loadSubscriptions()
                 await loadAlertCounts()
+                // Cold-start: handle any deep link that arrived before this
+                // view mounted (e.g. app launched from a notification tap).
+                await consumePendingDeepLink()
             }
             .refreshable {
                 await viewModel.loadSubscriptions()
@@ -151,6 +158,35 @@ struct HomeView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+    }
+
+    // MARK: - Deep Linking
+
+    /// Resolves a pending deep-link subscription id (set by
+    /// `NotificationService.didReceive`) to a local `Subscription` and opens
+    /// the detail sheet. If the subscriptions list hasn't loaded yet (or the
+    /// id isn't in it — e.g. a stale subscription), reloads once and retries.
+    private func consumePendingDeepLink() async {
+        guard let pendingId = DeepLinkCoordinator.shared.pendingSubscriptionId else {
+            return
+        }
+
+        if let match = viewModel.subscriptions.first(where: { $0.id == pendingId }) {
+            _ = DeepLinkCoordinator.shared.consume()
+            selectedSubscription = match
+            return
+        }
+
+        // Not in the map yet — reload and retry once.
+        await viewModel.loadSubscriptions()
+        if let match = viewModel.subscriptions.first(where: { $0.id == pendingId }) {
+            _ = DeepLinkCoordinator.shared.consume()
+            selectedSubscription = match
+        } else {
+            // Subscription couldn't be resolved (deleted?). Drop the pending id
+            // so we don't keep retrying forever.
+            _ = DeepLinkCoordinator.shared.consume()
+        }
     }
 
     // MARK: - Alert Counts

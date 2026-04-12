@@ -82,17 +82,8 @@ export async function POST(req: NextRequest) {
     let pushResult: boolean | null = null;
     let smsResult: boolean | null = null;
 
-    // Send push notification
-    if (sub.deliveryMethod === "push" || sub.deliveryMethod === "both") {
-      pushResult = await sendPushToUser(sub.userId, message);
-    }
-
-    // Send SMS
-    if (sub.deliveryMethod === "sms" || sub.deliveryMethod === "both") {
-      smsResult = await sendSMSToUser(sub.userId, message);
-    }
-
-    // Insert alert record
+    // Insert alert record first so we can attach its id to the push payload
+    // (enables iOS deep-linking into AlertDetailView on notification tap).
     const [alert] = await db
       .insert(alerts)
       .values({
@@ -104,6 +95,19 @@ export async function POST(req: NextRequest) {
         eventDescription: `[TEST] ${entityName ?? entityId}: ${trigger}`,
       })
       .returning();
+
+    // Send push notification
+    if (sub.deliveryMethod === "push" || sub.deliveryMethod === "both") {
+      pushResult = await sendPushToUser(sub.userId, message, {
+        subscriptionId: sub.id,
+        alertId: alert?.id,
+      });
+    }
+
+    // Send SMS
+    if (sub.deliveryMethod === "sms" || sub.deliveryMethod === "both") {
+      smsResult = await sendSMSToUser(sub.userId, message);
+    }
 
     details.push({
       subscriptionId: sub.id,

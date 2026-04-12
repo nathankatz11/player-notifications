@@ -16,11 +16,22 @@ interface APNsPayload {
   body: string;
   badge?: number;
   sound?: string;
+  /** Custom field — the subscription that triggered this alert (for iOS deep-linking). */
+  subscriptionId?: string;
+  /** Custom field — the alert row id (for iOS deep-linking / analytics). */
+  alertId?: string;
 }
 
 /**
  * Send a push notification to an iOS device via APNs.
  * Uses token-based authentication (JWT).
+ *
+ * The on-wire body shape is:
+ *   {
+ *     "aps": { "alert": { "title": "...", "body": "..." }, "sound": "default" },
+ *     "subscriptionId": "<id>",   // custom, outside aps
+ *     "alertId": "<id>"           // custom, outside aps
+ *   }
  */
 export async function sendPushNotification(
   deviceToken: string,
@@ -32,7 +43,10 @@ export async function sendPushNotification(
 
   if (!keyId || !teamId || !bundleId) {
     console.warn("[APNs] Missing configuration — push notification skipped");
-    console.log(`[APNs STUB] → ${deviceToken}: ${payload.title} — ${payload.body}`);
+    console.log(
+      `[APNs STUB] → ${deviceToken}: ${payload.title} — ${payload.body}` +
+        (payload.subscriptionId ? ` (subscriptionId=${payload.subscriptionId})` : "")
+    );
     return false;
   }
 
@@ -43,18 +57,29 @@ export async function sendPushNotification(
   //      authorization: bearer <jwt>
   //      apns-topic: <bundleId>
   //      apns-push-type: alert
-  //    Body: { aps: { alert: { title, body }, badge, sound: "default" } }
+  //    Body: {
+  //      aps: { alert: { title, body }, badge, sound: "default" },
+  //      subscriptionId, alertId    // custom fields outside aps
+  //    }
 
-  console.log(`[APNs STUB] → ${deviceToken}: ${payload.title} — ${payload.body}`);
+  console.log(
+    `[APNs STUB] → ${deviceToken}: ${payload.title} — ${payload.body}` +
+      (payload.subscriptionId ? ` (subscriptionId=${payload.subscriptionId})` : "")
+  );
   return true;
 }
 
 /**
  * Send a push notification to a user by looking up their APNs token.
+ *
+ * Optional `ids` lets callers attach a `subscriptionId` / `alertId` so the iOS
+ * app can deep-link into the right `AlertDetailView` when the user taps the
+ * notification.
  */
 export async function sendPushToUser(
   userId: string,
-  message: string
+  message: string,
+  ids?: { subscriptionId?: string; alertId?: string }
 ): Promise<boolean> {
   // Import here to avoid circular dependency
   const { db } = await import("./db");
@@ -73,5 +98,7 @@ export async function sendPushToUser(
     body: message,
     sound: "default",
     badge: 1,
+    subscriptionId: ids?.subscriptionId,
+    alertId: ids?.alertId,
   });
 }
