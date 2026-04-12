@@ -125,7 +125,23 @@ struct HomeView: View {
 
     private var alertList: some View {
         List {
-            ForEach(viewModel.subscriptions) { subscription in
+            Section {
+                subscriptionRows
+            } header: {
+                let count = viewModel.subscriptions.count
+                Text("\(count) \(count == 1 ? "Alert" : "Alerts")")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .tracking(0.8)
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
+
+    @ViewBuilder
+    private var subscriptionRows: some View {
+        ForEach(viewModel.subscriptions) { subscription in
                 Button {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     selectedSubscription = subscription
@@ -140,12 +156,18 @@ struct HomeView: View {
                 .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button(role: .destructive) {
-                        Task { await viewModel.deleteSubscription(subscription) }
+                        Task {
+                            await viewModel.deleteSubscription(subscription)
+                            UINotificationFeedbackGenerator().notificationOccurred(.success)
+                        }
                     } label: {
                         Label("Delete", systemImage: "trash")
                     }
                     Button {
-                        Task { await viewModel.toggleSubscription(subscription) }
+                        Task {
+                            await viewModel.toggleSubscription(subscription)
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        }
                     } label: {
                         Label(
                             subscription.active ? "Pause" : "Resume",
@@ -154,10 +176,7 @@ struct HomeView: View {
                     }
                     .tint(subscription.active ? .orange : .green)
                 }
-            }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
     }
 
     // MARK: - Deep Linking
@@ -230,16 +249,19 @@ struct AlertRow: View {
                     .clipShape(Circle())
             }
 
-            // Name + trigger
-            VStack(alignment: .leading, spacing: 3) {
+            // Name + trigger chip (matches AlertHistoryView's design language)
+            VStack(alignment: .leading, spacing: 6) {
                 Text(subscription.entityName)
                     .font(.system(.body, design: .rounded, weight: .semibold))
                     .foregroundStyle(isActive ? .white : .white.opacity(0.4))
                     .lineLimit(1)
 
-                Text(subscription.trigger.displayName)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary.opacity(isActive ? 1.0 : 0.5))
+                Text(subscription.trigger.shortLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(leagueColor.opacity(isActive ? 1.0 : 0.4))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(leagueColor.opacity(isActive ? 0.15 : 0.06), in: Capsule())
                     .lineLimit(1)
             }
 

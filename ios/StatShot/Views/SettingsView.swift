@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Environment(AuthViewModel.self) private var authViewModel
     @State private var activeAlertCount: Int = 0
     @State private var notificationsEnabled: Bool = false
+    @State private var showingSignOutConfirmation = false
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
@@ -25,6 +26,19 @@ struct SettingsView: View {
                 await checkNotificationStatus()
                 await authViewModel.loadProfile()
             }
+            .confirmationDialog(
+                "Sign out of StatShot?",
+                isPresented: $showingSignOutConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Sign Out", role: .destructive) {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    authViewModel.signOut()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You'll stop receiving alerts until you sign back in.")
+            }
         }
     }
 
@@ -38,7 +52,7 @@ struct SettingsView: View {
                 }
 
                 Button("Sign Out", role: .destructive) {
-                    authViewModel.signOut()
+                    showingSignOutConfirmation = true
                 }
             } else {
                 Button {
@@ -76,7 +90,10 @@ struct SettingsView: View {
             }
 
             Button {
-                Task { await authViewModel.saveProfile() }
+                Task {
+                    await authViewModel.saveProfile()
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                }
             } label: {
                 Text("Save Contact Info")
                     .frame(maxWidth: .infinity)
@@ -96,11 +113,16 @@ struct SettingsView: View {
 
     private var alertsSection: some View {
         Section("Alerts") {
-            HStack {
+            HStack(spacing: 10) {
+                Image(systemName: "bell.badge.fill")
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 20)
                 Text("Active Alerts")
                 Spacer()
                 Text("\(activeAlertCount)")
+                    .font(.system(.body, design: .rounded, weight: .semibold))
                     .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
         }
     }

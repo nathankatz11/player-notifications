@@ -12,10 +12,32 @@ import type { ESPNPlay, ESPNEvent, League } from "./espn";
 
 type Trigger = string;
 
-interface ParsedPlay {
+export interface ParsedPlay {
   entityId: string;
   trigger: Trigger;
   description: string;
+}
+
+/**
+ * Minimal shape of a subscription row for matching. Using a structural type
+ * here (instead of the full Drizzle row type) keeps these helpers trivially
+ * testable without pulling in db/schema.
+ */
+export interface SubscriptionLike {
+  entityId: string;
+  trigger: string;
+  active: boolean;
+}
+
+/**
+ * Minimal shape of an alert row for dedupe. The dedupe key is
+ * (subscriptionId, gameId, eventDescription) — the same play text from the
+ * same game should not fire the same subscription twice.
+ */
+export interface AlertLike {
+  subscriptionId: string;
+  gameId: string;
+  eventDescription: string;
 }
 
 /** Sport emoji per league */
@@ -214,7 +236,74 @@ const TRIGGER_MAP: Record<string, Trigger> = {
   "single": "single",
 };
 
-function parsePlay(play: ESPNPlay, league: League, event?: ESPNEvent): ParsedPlay | null {
+/**
+ * Pure predicate: does this parsed play match this subscription?
+ *
+ * A subscription matches when its entityId equals the play's entityId (the
+ * player or team involved), the subscription's trigger equals the play's
+ * trigger, and the subscription is active.
+ */
+export function matchesSubscription(
+  parsed: ParsedPlay,
+  sub: SubscriptionLike
+): boolean {
+  if (!sub.active) return false;
+  if (sub.entityId !== parsed.entityId) return false;
+  if (sub.trigger !== parsed.trigger) return false;
+  return true;
+}
+
+/**
+ * Pure predicate: does this game-end event match a team_win / team_loss
+ * subscription? Only fires once the game state is "post" (final).
+ *
+ * This helper is ready to be wired into `matchAndAlert` when team-event
+ * matching is added to the polling cron. It lives here so the behavior is
+ * unit-tested up-front and the match logic is not scattered across routes.
+ */
+export function matchesTeamResult(
+  event: ESPNEvent,
+  sub: SubscriptionLike
+): boolean {
+  if (!sub.active) return false;
+  if (sub.trigger !== "team_win" && sub.trigger !== "team_loss") return false;
+
+  // Only fire on final
+  if (event.status?.type?.state !== "post") return false;
+
+  const comp = event.competitions?.[0];
+  if (!comp) return false;
+
+  const subbed = comp.competitors.find((c) => c.team.id === sub.entityId);
+  const other = comp.competitors.find((c) => c.team.id !== sub.entityId);
+  if (!subbed || !other) return false;
+
+  const subbedScore = Number(subbed.score);
+  const otherScore = Number(other.score);
+  if (Number.isNaN(subbedScore) || Number.isNaN(otherScore)) return false;
+
+  if (sub.trigger === "team_win") return subbedScore > otherScore;
+  return subbedScore < otherScore;
+}
+
+/**
+ * Pure dedupe predicate: has an alert for this (subscription, game, event
+ * description) already been recorded? Callers pass in the existing alerts
+ * rows they've fetched — the predicate itself does no I/O.
+ */
+export function isDuplicateAlert(
+  candidate: AlertLike,
+  existing: readonly AlertLike[]
+): boolean {
+  return existing.some(
+    (a) =>
+      a.subscriptionId === candidate.subscriptionId &&
+      a.gameId === candidate.gameId &&
+      a.eventDescription === candidate.eventDescription
+  );
+}
+
+export function parsePlay(play: ESPNPlay, league: League, event?: ESPNEvent): ParsedPlay | null {
   const playType = play.type?.text?.toLowerCase() ?? "";
   const playerName = play.participants?.[0]?.athlete?.displayName ?? "Unknown";
   const playerId = play.participants?.[0]?.athlete?.id ?? "";
