@@ -7,6 +7,7 @@ struct HomeView: View {
     @State private var alerts: [AlertItem] = []
     @State private var filteredGames: [LeagueGame] = []
     @State private var isLoadingFeed = false
+    @State private var selectedGame: LeagueGame?
 
     var body: some View {
         NavigationStack {
@@ -37,6 +38,9 @@ struct HomeView: View {
                 AlertDetailView(subscription: subscription) {
                     viewModel.subscriptions.removeAll { $0.id == subscription.id }
                 }
+            }
+            .sheet(item: $selectedGame) { lg in
+                GameDetailSheet(game: lg.game, league: lg.league)
             }
             .onChange(of: showingAddAlert) { _, isShowing in
                 if !isShowing { Task { await loadAll() } }
@@ -125,6 +129,11 @@ struct HomeView: View {
             HStack(spacing: 10) {
                 ForEach(filteredGames) { lg in
                     ScoreTile(game: lg.game, league: lg.league)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            selectedGame = lg
+                        }
                 }
             }
             .padding(.horizontal, 16)

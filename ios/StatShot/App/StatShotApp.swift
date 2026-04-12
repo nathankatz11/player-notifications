@@ -50,17 +50,11 @@ struct ContentView: View {
                         }
                         .tag(0)
 
-                    ScoreFeedView()
-                        .tabItem {
-                            Label("Scores", systemImage: "sportscourt.fill")
-                        }
-                        .tag(1)
-
                     SettingsView()
                         .tabItem {
                             Label("Settings", systemImage: "gear")
                         }
-                        .tag(2)
+                        .tag(1)
                 }
                 // If a push tap lands us here (or we're already here), jump to the
                 // Alerts tab so HomeView can pick up the pending deep link.
