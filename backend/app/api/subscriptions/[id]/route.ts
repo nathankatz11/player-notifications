@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { subscriptions } from "@/lib/db/schema";
+
+const updateSubscriptionSchema = z.object({
+  active: z.boolean().optional(),
+  trigger: z.string().min(1).optional(),
+  deliveryMethod: z.string().min(1).optional(),
+});
 
 /**
  * PUT /api/subscriptions/[id]
@@ -12,7 +19,15 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const body = await req.json();
+  const json = await req.json().catch(() => null);
+  const result = updateSubscriptionSchema.safeParse(json);
+  if (!result.success) {
+    return NextResponse.json(
+      { error: "Invalid request", issues: result.error.issues },
+      { status: 400 }
+    );
+  }
+  const body = result.data;
 
   const updates: Record<string, unknown> = {};
   if (body.trigger !== undefined) updates.trigger = body.trigger;

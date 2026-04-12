@@ -25,6 +25,7 @@
 		96FF00524427D90591D2C6EB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F7E0D1BFC5F36CC639EF5F /* SettingsView.swift */; };
 		9CFD4AC21634C640FEFF6011 /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2ECE6735A24CE63BFADB811 /* ToastView.swift */; };
 		AA4AF28B23E5E1EF6B6B31A8 /* DeepLinkCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C772C441BDA4EFC726B53DF3 /* DeepLinkCoordinator.swift */; };
+		AFCE757F86B29ED1CA77FEDB /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACA3A752FAA21379A495654A /* AppDelegate.swift */; };
 		C5E773CBCEA6BB14304F93E8 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E1B6B6B98A27BAB655073EC /* AuthViewModel.swift */; };
 		C9F6AA794CAA5FA8F36E47F7 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 765BB5EAC4D67377DECF713C /* APIService.swift */; };
 		DA3F97751FD3975F5E956433 /* AlertHistoryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FE312C2B4909F302AEF8A3 /* AlertHistoryViewModel.swift */; };
@@ -48,6 +49,7 @@
 		8BF524FD5C57E6ABCBBC645C /* Alert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Alert.swift; sourceTree = "<group>"; };
 		9F1D4945D4A5B7BD6053D0C6 /* ScoreFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreFeedView.swift; sourceTree = "<group>"; };
 		A15064294B5EF2B7228B6B9A /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		ACA3A752FAA21379A495654A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B2ECE6735A24CE63BFADB811 /* ToastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastView.swift; sourceTree = "<group>"; };
 		C772C441BDA4EFC726B53DF3 /* DeepLinkCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkCoordinator.swift; sourceTree = "<group>"; };
 		D16C9990E01908BD5FDC16E1 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
@@ -137,6 +139,7 @@
 		DD5F1AC698769D67AA0486F3 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				ACA3A752FAA21379A495654A /* AppDelegate.swift */,
 				E24E60A6B44F65A3B15913F3 /* StatShotApp.swift */,
 			);
 			path = App;
@@ -227,6 +230,7 @@
 				04E9AF5997BED8F184F0EB05 /* AlertDetailView.swift in Sources */,
 				7F3937E236EFB22BF5260286 /* AlertHistoryView.swift in Sources */,
 				DA3F97751FD3975F5E956433 /* AlertHistoryViewModel.swift in Sources */,
+				AFCE757F86B29ED1CA77FEDB /* AppDelegate.swift in Sources */,
 				3F8D4CE233FEBEA315B524EF /* AppIconView.swift in Sources */,
 				0EBFDDA345FB3F9D027ABAFA /* AuthService.swift in Sources */,
 				C5E773CBCEA6BB14304F93E8 /* AuthViewModel.swift in Sources */,

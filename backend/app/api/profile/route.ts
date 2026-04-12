@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+
+const updateProfileSchema = z.object({
+  userId: z.string().min(1),
+  phone: z.string().optional(),
+  xHandle: z.string().optional(),
+});
 
 /**
  * GET /api/profile?userId=...
@@ -33,12 +40,15 @@ export async function GET(req: NextRequest) {
  * Body: { userId, phone?, xHandle? }
  */
 export async function PATCH(req: NextRequest) {
-  const body = await req.json();
-  const { userId, phone, xHandle } = body;
-
-  if (!userId) {
-    return NextResponse.json({ error: "userId is required" }, { status: 400 });
+  const json = await req.json().catch(() => null);
+  const result = updateProfileSchema.safeParse(json);
+  if (!result.success) {
+    return NextResponse.json(
+      { error: "Invalid request", issues: result.error.issues },
+      { status: 400 }
+    );
   }
+  const { userId, phone, xHandle } = result.data;
 
   const updates: { phone?: string | null; xHandle?: string | null } = {};
   if (phone !== undefined) updates.phone = phone || null;

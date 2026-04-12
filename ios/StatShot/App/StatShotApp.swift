@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct StatShotApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var authViewModel = AuthViewModel()
     @State private var hasSeenOnboarding = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
 
@@ -11,7 +12,6 @@ struct StatShotApp: App {
                 ContentView()
                     .environment(authViewModel)
                     .task {
-                        NotificationService.shared.registerDelegate()
                         authViewModel.checkExistingAuth()
                         NotificationService.shared.requestAuthorization()
                         if !authViewModel.isAuthenticated {

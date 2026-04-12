@@ -6,6 +6,26 @@ import { sendPushToUser } from "@/lib/apns";
 import { sendSMSToUser } from "@/lib/twilio";
 
 /**
+ * Authorize the request using the same CRON_SECRET bearer pattern
+ * as /api/cron/poll. In dev (non-production) with CRON_SECRET unset,
+ * allow the request so local testing still works.
+ */
+function authorize(req: NextRequest): NextResponse | null {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV !== "production") {
+      return null;
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const authHeader = req.headers.get("authorization");
+  if (authHeader !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return null;
+}
+
+/**
  * GET /api/test/fire
  * Returns usage instructions for the test endpoint.
  */
@@ -36,6 +56,9 @@ export async function GET() {
  * and insert alert records.
  */
 export async function POST(req: NextRequest) {
+  const unauthorized = authorize(req);
+  if (unauthorized) return unauthorized;
+
   const body = await req.json();
   const { entityId, entityName, trigger, message } = body;
 

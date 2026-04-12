@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import UserNotifications
 
 /// Handles APNs push notification registration and permission requests.
@@ -10,21 +11,13 @@ final class NotificationService: NSObject, @unchecked Sendable {
         super.init()
     }
 
-    /// Registers this service as the `UNUserNotificationCenter` delegate so
-    /// foreground push notifications present a banner, play sound, and update
-    /// the badge instead of being silently dropped by iOS.
-    func registerDelegate() {
-        UNUserNotificationCenter.current().delegate = self
-    }
-
     func requestAuthorization() {
         UNUserNotificationCenter.current().requestAuthorization(
             options: [.alert, .badge, .sound]
         ) { granted, error in
             if granted {
                 DispatchQueue.main.async {
-                    // TODO: Uncomment when running on a real device
-                    // UIApplication.shared.registerForRemoteNotifications()
+                    UIApplication.shared.registerForRemoteNotifications()
                 }
             }
 

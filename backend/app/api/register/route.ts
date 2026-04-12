@@ -1,22 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+
+const registerSchema = z.object({
+  email: z.string().email(),
+  apnsToken: z.string().min(1),
+});
 
 /**
  * POST /api/register
  * Register a device with an APNs token. Creates or updates the user.
  */
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { email, apnsToken } = body;
-
-  if (!email || !apnsToken) {
+  const json = await req.json().catch(() => null);
+  const result = registerSchema.safeParse(json);
+  if (!result.success) {
     return NextResponse.json(
-      { error: "email and apnsToken are required" },
+      { error: "Invalid request", issues: result.error.issues },
       { status: 400 }
     );
   }
+  const { email, apnsToken } = result.data;
 
   // Upsert user by email
   const existing = await db.select().from(users).where(eq(users.email, email));
