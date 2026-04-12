@@ -7,8 +7,18 @@ final class AlertHistoryViewModel {
     var alerts: [AlertItem] = []
     var subscriptionsById: [String: Subscription] = [:]
     var isLoading = false
+    var isLoadingMore = false
     var errorMessage: String?
     var lastSeenAt: Date?
+
+    /// Cursor for the next page (nil when no more results are available
+    /// or when alerts haven't been loaded yet).
+    var nextCursor: Date?
+
+    /// True when more pages remain on the server.
+    var hasMore: Bool { nextCursor != nil }
+
+    private let pageSize = 50
 
     /// Leagues currently selected in the filter menu. Empty set means "show all".
     var selectedLeagues: Set<League> = []
@@ -19,6 +29,8 @@ final class AlertHistoryViewModel {
         self.lastSeenAt = UserDefaults.standard.object(forKey: lastSeenKey) as? Date
     }
 
+    /// Resets pagination and loads the first page of alerts along with the
+    /// user's subscriptions. Replaces `alerts` on success.
     func loadAlerts() async {
         isLoading = true
         errorMessage = nil
@@ -30,17 +42,48 @@ final class AlertHistoryViewModel {
         }
 
         do {
-            async let alertsTask = APIService.shared.getAlertHistory(userId: userId)
+            async let alertsTask = APIService.shared.getAlertHistory(
+                userId: userId,
+                limit: pageSize,
+                cursor: nil
+            )
             async let subsTask = APIService.shared.getSubscriptions(userId: userId)
 
-            let (loadedAlerts, loadedSubs) = try await (alertsTask, subsTask)
-            self.alerts = loadedAlerts
+            let (alertsPage, loadedSubs) = try await (alertsTask, subsTask)
+            self.alerts = alertsPage.alerts
+            self.nextCursor = alertsPage.nextCursor
 
             var map: [String: Subscription] = [:]
             for sub in loadedSubs {
                 map[sub.id] = sub
             }
             self.subscriptionsById = map
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Fetches the next page using `nextCursor` and appends the results.
+    /// No-ops if a load is already in-flight or no more pages exist.
+    func loadMore() async {
+        guard !isLoadingMore, !isLoading else { return }
+        guard let cursor = nextCursor else { return }
+        guard let userId = AuthService.shared.currentUserId else { return }
+
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+
+        do {
+            let page = try await APIService.shared.getAlertHistory(
+                userId: userId,
+                limit: pageSize,
+                cursor: cursor
+            )
+            // De-dupe defensively in case of overlap at the boundary.
+            let existingIds = Set(alerts.map(\.id))
+            let newRows = page.alerts.filter { !existingIds.contains($0.id) }
+            self.alerts.append(contentsOf: newRows)
+            self.nextCursor = page.nextCursor
         } catch {
             errorMessage = error.localizedDescription
         }

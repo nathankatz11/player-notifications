@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { games } from "@/lib/db/schema";
-import { fetchScoreboard, fetchGameSummary, type League, type ESPNPlay } from "@/lib/espn";
+import { anyLiveGames, fetchScoreboard, fetchGameSummary, type League, type ESPNPlay } from "@/lib/espn";
 import { matchAndAlert } from "@/lib/alerts";
 
 const ACTIVE_LEAGUES: League[] = ["nba", "nfl", "nhl", "mlb", "ncaafb", "ncaamb", "mls"];
@@ -10,13 +10,40 @@ const ACTIVE_LEAGUES: League[] = ["nba", "nfl", "nhl", "mlb", "ncaafb", "ncaamb"
 /**
  * GET /api/cron/poll
  * Vercel Cron Job: polls ESPN for live games and dispatches alerts.
- * Configured in vercel.json to run every minute.
+ * Configured in vercel.json. Fast-paths (skips) when no games are live or
+ * starting within 10 minutes.
  */
 export async function GET(req: NextRequest) {
+  const startedAt = Date.now();
+
   // Verify this is a legitimate cron call
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Fast path: skip the expensive per-game polling when nothing is live.
+  const liveCheckStart = Date.now();
+  const hasLive = await anyLiveGames();
+  const anyLiveGamesTookMs = Date.now() - liveCheckStart;
+
+  if (!hasLive) {
+    const duration_ms = Date.now() - startedAt;
+    console.log(
+      JSON.stringify({
+        route: "cron/poll",
+        skipped: true,
+        reason: "no_live_games",
+        anyLiveGamesTookMs,
+        duration_ms,
+        matched: 0,
+        sent: 0,
+      })
+    );
+    return Response.json(
+      { skipped: true, reason: "no_live_games" },
+      { status: 200 }
+    );
   }
 
   let totalAlerts = 0;
@@ -32,6 +59,18 @@ export async function GET(req: NextRequest) {
       results[league] = { error: String(error) };
     }
   }
+
+  const duration_ms = Date.now() - startedAt;
+  console.log(
+    JSON.stringify({
+      route: "cron/poll",
+      skipped: false,
+      anyLiveGamesTookMs,
+      duration_ms,
+      matched: totalAlerts,
+      sent: totalAlerts,
+    })
+  );
 
   return NextResponse.json({
     polled: ACTIVE_LEAGUES.length,

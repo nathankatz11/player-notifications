@@ -58,6 +58,56 @@ export async function fetchScoreboard(league: League): Promise<{ events: ESPNEve
   return res.json();
 }
 
+const ALL_LEAGUES: League[] = ["nba", "nfl", "nhl", "mlb", "ncaafb", "ncaamb", "mls"];
+
+// Module-level cache for anyLiveGames() — shared across warm invocations.
+// Cold starts re-fetch (correct), and 2-minute TTL prevents thrashing ESPN
+// if multiple calls happen within one cron execution.
+const LIVE_CACHE_TTL_MS = 2 * 60 * 1000;
+const START_SOON_WINDOW_MS = 10 * 60 * 1000;
+let liveCache: { value: boolean; at: number } | null = null;
+
+/**
+ * Returns true if any supported league has a game in progress or starting
+ * within the next 10 minutes. Used to fast-path skip cron polling when no
+ * games are live. Results are cached for 2 minutes.
+ */
+export async function anyLiveGames(): Promise<boolean> {
+  const now = Date.now();
+  if (liveCache && now - liveCache.at < LIVE_CACHE_TTL_MS) {
+    return liveCache.value;
+  }
+
+  // ESPN has no cross-sport scoreboard endpoint, so fan out.
+  const results = await Promise.all(
+    ALL_LEAGUES.map(async (league) => {
+      try {
+        const sb = await fetchScoreboard(league);
+        return sb.events.some((e) => {
+          const state = e.status?.type?.state;
+          if (state === "in") return true;
+          if (state === "pre") {
+            const startMs = Date.parse(e.date);
+            if (!Number.isNaN(startMs) && startMs - now <= START_SOON_WINDOW_MS && startMs - now >= 0) {
+              return true;
+            }
+          }
+          return false;
+        });
+      } catch (err) {
+        // On ESPN error, bias toward polling (return true) so we don't silently
+        // miss alerts due to a transient scoreboard failure.
+        console.error(`anyLiveGames: scoreboard fetch failed for ${league}:`, err);
+        return true;
+      }
+    })
+  );
+
+  const value = results.some(Boolean);
+  liveCache = { value, at: now };
+  return value;
+}
+
 /** Fetch play-by-play summary for a specific game */
 export async function fetchGameSummary(league: League, gameId: string): Promise<ESPNPlay[]> {
   const path = LEAGUE_PATHS[league];

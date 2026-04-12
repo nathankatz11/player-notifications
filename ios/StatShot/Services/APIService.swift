@@ -115,10 +115,32 @@ final class APIService: Sendable {
 
     // MARK: - Alerts
 
-    func getAlertHistory(userId: String) async throws -> [AlertItem] {
-        let data = try await get("/api/alerts?userId=\(userId)")
+    /// Fetches a page of alert history.
+    /// - Parameters:
+    ///   - userId: The user whose alerts to fetch.
+    ///   - limit: Max rows per page (server clamps to 1...100). Defaults to 50.
+    ///   - cursor: If non-nil, return rows strictly older than this date.
+    /// - Returns: The decoded page of alerts and the next cursor (nil if end of list).
+    func getAlertHistory(
+        userId: String,
+        limit: Int = 50,
+        cursor: Date? = nil
+    ) async throws -> (alerts: [AlertItem], nextCursor: Date?) {
+        var components = URLComponents()
+        components.queryItems = [
+            URLQueryItem(name: "userId", value: userId),
+            URLQueryItem(name: "limit", value: String(limit)),
+        ]
+        if let cursor {
+            let formatted = cursor.formatted(
+                .iso8601.year().month().day().time(includingFractionalSeconds: true)
+            )
+            components.queryItems?.append(URLQueryItem(name: "cursor", value: formatted))
+        }
+        let query = components.percentEncodedQuery ?? ""
+        let data = try await get("/api/alerts?\(query)")
         let response = try decoder.decode(AlertsResponse.self, from: data)
-        return response.alerts
+        return (response.alerts, response.nextCursor)
     }
 
     // MARK: - HTTP Helpers
@@ -212,6 +234,7 @@ struct SubscriptionsResponse: Decodable {
 
 struct AlertsResponse: Decodable {
     let alerts: [AlertItem]
+    let nextCursor: Date?
 }
 
 struct Team: Codable, Identifiable, Sendable {

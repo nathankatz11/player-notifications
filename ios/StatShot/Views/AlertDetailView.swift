@@ -13,8 +13,8 @@ final class AlertDetailViewModel {
         defer { isLoading = false }
 
         do {
-            let all = try await APIService.shared.getAlertHistory(userId: userId)
-            alerts = all
+            let page = try await APIService.shared.getAlertHistory(userId: userId)
+            alerts = page.alerts
                 .filter { $0.subscriptionId == subscriptionId }
                 .prefix(10)
                 .map { $0 }

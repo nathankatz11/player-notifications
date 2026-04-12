@@ -196,9 +196,9 @@ struct HomeView: View {
     private func loadAlertCounts() async {
         guard let userId = AuthService.shared.currentUserId else { return }
         do {
-            let alerts = try await APIService.shared.getAlertHistory(userId: userId)
+            let page = try await APIService.shared.getAlertHistory(userId: userId)
             var counts: [String: Int] = [:]
-            for alert in alerts {
+            for alert in page.alerts {
                 counts[alert.subscriptionId, default: 0] += 1
             }
             alertCounts = counts

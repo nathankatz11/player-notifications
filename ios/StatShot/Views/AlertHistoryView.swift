@@ -236,6 +236,26 @@ struct AlertHistoryView: View {
                 }
             }
             .padding(.vertical, 8)
+
+            // Pagination footer — appears after the last section.
+            // The trailing 1pt transparent view acts as a scroll sentinel:
+            // when it enters the viewport, we fetch the next page.
+            if viewModel.hasMore {
+                HStack {
+                    Spacer()
+                    if viewModel.isLoadingMore {
+                        ProgressView()
+                    } else {
+                        Color.clear
+                            .frame(height: 1)
+                            .onAppear {
+                                Task { await viewModel.loadMore() }
+                            }
+                    }
+                    Spacer()
+                }
+                .padding()
+            }
         }
         .scrollContentBackground(.hidden)
     }
