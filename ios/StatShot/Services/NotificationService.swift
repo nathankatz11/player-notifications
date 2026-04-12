@@ -7,6 +7,11 @@ import UserNotifications
 final class NotificationService: NSObject, @unchecked Sendable {
     static let shared = NotificationService()
 
+    /// One-shot resolvers awaiting the next APNs device token. Mutated only on
+    /// the main actor (see `awaitDeviceToken` and `handleDeviceToken`).
+    @MainActor
+    private var tokenResolvers: [(String) -> Void] = []
+
     private override init() {
         super.init()
     }
@@ -33,11 +38,55 @@ final class NotificationService: NSObject, @unchecked Sendable {
 
         // Store locally and send to backend on next register/login
         UserDefaults.standard.set(token, forKey: "statshot_apns_token")
+
+        // Notify any awaiters that were blocked waiting for the token.
+        Task { @MainActor in
+            let resolvers = tokenResolvers
+            tokenResolvers.removeAll()
+            for resolver in resolvers {
+                resolver(token)
+            }
+        }
     }
 
     var storedAPNsToken: String? {
         UserDefaults.standard.string(forKey: "statshot_apns_token")
     }
+
+    /// Waits up to `timeout` for iOS to deliver an APNs device token. Returns
+    /// the cached token immediately if one is already present. On simulator
+    /// (where APNs never calls back) this resolves to `nil` after the timeout
+    /// and the caller should fall back to a placeholder.
+    @MainActor
+    func awaitDeviceToken(timeout: Duration = .seconds(3)) async -> String? {
+        if let token = storedAPNsToken { return token }
+
+        return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
+            // `resumed` is only touched on the main actor, both by the resolver
+            // (invoked from `handleDeviceToken`'s main-actor hop) and by the
+            // timeout task below (also hops to the main actor). No lock needed.
+            let state = ResumeState()
+
+            tokenResolvers.append { token in
+                guard !state.resumed else { return }
+                state.resumed = true
+                continuation.resume(returning: token)
+            }
+
+            Task { @MainActor in
+                try? await Task.sleep(for: timeout)
+                guard !state.resumed else { return }
+                state.resumed = true
+                continuation.resume(returning: nil)
+            }
+        }
+    }
+}
+
+/// Main-actor-isolated one-shot guard for `awaitDeviceToken`'s continuation.
+@MainActor
+private final class ResumeState {
+    var resumed = false
 }
 
 extension NotificationService: UNUserNotificationCenterDelegate {

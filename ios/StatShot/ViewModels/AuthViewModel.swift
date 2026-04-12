@@ -25,9 +25,19 @@ final class AuthViewModel {
         defer { isLoading = false }
 
         do {
+            // Wait up to 3s for iOS to deliver the real APNs token before
+            // hitting /api/register. Without this, the first registration
+            // posts the placeholder and is overwritten ~1s later by
+            // `refreshAPNsToken`, leaving a brief window of garbage on the
+            // backend. On simulator (no APNs callback) this falls through to
+            // the placeholder after the timeout.
+            let apnsToken = await NotificationService.shared.awaitDeviceToken(
+                timeout: .seconds(3)
+            ) ?? "simulator-token"
+
             try await AuthService.shared.register(
                 email: "test@statshot.app",
-                apnsToken: NotificationService.shared.storedAPNsToken ?? "simulator-token"
+                apnsToken: apnsToken
             )
             isAuthenticated = true
             await loadProfile()
