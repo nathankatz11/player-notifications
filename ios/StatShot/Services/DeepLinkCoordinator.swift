@@ -20,6 +20,12 @@ final class DeepLinkCoordinator {
     /// they've navigated.
     var pendingSubscriptionId: String?
 
+    /// A user-visible error string shown as a toast when a deep link fails to
+    /// resolve (e.g. the referenced subscription was deleted before the user
+    /// tapped the notification). Views read this and render it above the UI;
+    /// it auto-clears on a timer.
+    var toastMessage: String?
+
     private init() {}
 
     /// Record a deep-link request. Safe to call repeatedly; the latest tap wins.
@@ -32,5 +38,17 @@ final class DeepLinkCoordinator {
     func consume() -> String? {
         defer { pendingSubscriptionId = nil }
         return pendingSubscriptionId
+    }
+
+    /// Surface a user-visible failure message (e.g. "deep link couldn't
+    /// resolve"). Callers typically follow up by calling `consume()` to clear
+    /// the pending id.
+    func reportFailure(_ message: String) {
+        toastMessage = message
+    }
+
+    /// Clear the toast. Called by the auto-dismiss timer in the view layer.
+    func clearToast() {
+        toastMessage = nil
     }
 }

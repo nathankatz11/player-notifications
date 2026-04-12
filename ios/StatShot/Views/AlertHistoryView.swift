@@ -80,7 +80,9 @@ struct AlertHistoryView: View {
             _ = DeepLinkCoordinator.shared.consume()
             deepLinkTarget = match
         } else {
-            // Couldn't resolve — clear so we don't loop forever.
+            // Couldn't resolve — surface a toast and clear so we don't loop
+            // forever.
+            DeepLinkCoordinator.shared.reportFailure("This alert's subscription is no longer available.")
             _ = DeepLinkCoordinator.shared.consume()
         }
     }

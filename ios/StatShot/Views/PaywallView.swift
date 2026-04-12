@@ -107,8 +107,9 @@ struct PaywallView: View {
 
     private func purchase() async {
         isPurchasing = true
-        defer { isPurchasing = false }
 
         // TODO: Stripe payment sheet integration
+
+        isPurchasing = false
     }
 }

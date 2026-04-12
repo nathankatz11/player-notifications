@@ -183,8 +183,10 @@ struct HomeView: View {
             _ = DeepLinkCoordinator.shared.consume()
             selectedSubscription = match
         } else {
-            // Subscription couldn't be resolved (deleted?). Drop the pending id
-            // so we don't keep retrying forever.
+            // Subscription couldn't be resolved (deleted?). Surface a toast so
+            // the user isn't confused by a silently-dropped tap, then clear the
+            // pending id so we don't keep retrying forever.
+            DeepLinkCoordinator.shared.reportFailure("This alert's subscription is no longer available.")
             _ = DeepLinkCoordinator.shared.consume()
         }
     }

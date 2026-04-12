@@ -29,6 +29,7 @@
 		DE31A329E0A77DB60DE3EA9D /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B2CD9BE475CE2AB13E3CD18 /* User.swift */; };
 		E1ED74F6C59FCC0C66C425B5 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D16C9990E01908BD5FDC16E1 /* NotificationService.swift */; };
 		F0DL00000000000000000001 /* DeepLinkCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0DL00000000000000000002 /* DeepLinkCoordinator.swift */; };
+		F0T0A5700000000000000001 /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0T0A5700000000000000002 /* ToastView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,6 +50,7 @@
 		A15064294B5EF2B7228B6B9A /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		D16C9990E01908BD5FDC16E1 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		F0DL00000000000000000002 /* DeepLinkCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkCoordinator.swift; sourceTree = "<group>"; };
+		F0T0A5700000000000000002 /* ToastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastView.swift; sourceTree = "<group>"; };
 		D1AC6F250B4C14E2EE831F01 /* Subscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subscription.swift; sourceTree = "<group>"; };
 		D56876D8FB3B59A941CD3929 /* AlertDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertDetailView.swift; sourceTree = "<group>"; };
 		D80379A3686A24888760DC53 /* StripeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripeService.swift; sourceTree = "<group>"; };
@@ -73,6 +75,7 @@
 				D56876D8FB3B59A941CD3929 /* AlertDetailView.swift */,
 				26F8FF2BFE2401DF2A59D205 /* AlertHistoryView.swift */,
 				FB35CB801B3ABC38B7A53D6D /* AppIconView.swift */,
+				F0T0A5700000000000000003 /* Components */,
 				43C805ABE74D556008DA9ED8 /* HomeView.swift */,
 				037DAC762305A8D363A4A0C6 /* OnboardingView.swift */,
 				705DA812ED0439AAA1B9F568 /* PaywallView.swift */,
@@ -80,6 +83,14 @@
 				F7F7E0D1BFC5F36CC639EF5F /* SettingsView.swift */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		F0T0A5700000000000000003 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				F0T0A5700000000000000002 /* ToastView.swift */,
+			);
+			path = Components;
 			sourceTree = "<group>";
 		};
 		5957EFA45F18779C6B9B51FC /* StatShot */ = {
@@ -221,6 +232,7 @@
 				C5E773CBCEA6BB14304F93E8 /* AuthViewModel.swift in Sources */,
 				5950868DC9D17F8588737DEF /* HomeView.swift in Sources */,
 				F0DL00000000000000000001 /* DeepLinkCoordinator.swift in Sources */,
+				F0T0A5700000000000000001 /* ToastView.swift in Sources */,
 				E1ED74F6C59FCC0C66C425B5 /* NotificationService.swift in Sources */,
 				811E343DEAC7865293F0152A /* OnboardingView.swift in Sources */,
 				3B2BB6A2871607EFD8D7549F /* PaywallView.swift in Sources */,

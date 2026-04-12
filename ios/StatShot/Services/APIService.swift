@@ -7,20 +7,17 @@ final class APIService: Sendable {
 
     private let baseURL = "https://backend-tau-ten-58.vercel.app"
 
-    private nonisolated(unsafe) let decoder: JSONDecoder = {
+    private let decoder: JSONDecoder = {
         let d = JSONDecoder()
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         d.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let string = try container.decode(String.self)
-            if let date = formatter.date(from: string) {
+            // Try with fractional seconds first
+            if let date = try? Date(string, strategy: .iso8601.year().month().day().time(includingFractionalSeconds: true)) {
                 return date
             }
             // Fallback without fractional seconds
-            let basic = ISO8601DateFormatter()
-            basic.formatOptions = [.withInternetDateTime]
-            if let date = basic.date(from: string) {
+            if let date = try? Date(string, strategy: .iso8601) {
                 return date
             }
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date: \(string)")
