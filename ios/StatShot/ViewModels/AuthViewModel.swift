@@ -27,7 +27,7 @@ final class AuthViewModel {
         do {
             try await AuthService.shared.register(
                 email: "test@statshot.app",
-                apnsToken: "simulator-token"
+                apnsToken: NotificationService.shared.storedAPNsToken ?? "simulator-token"
             )
             isAuthenticated = true
             await loadProfile()
