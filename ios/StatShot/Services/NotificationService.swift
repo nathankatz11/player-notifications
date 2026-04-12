@@ -7,10 +7,12 @@ import UserNotifications
 final class NotificationService: NSObject, @unchecked Sendable {
     static let shared = NotificationService()
 
-    /// One-shot resolvers awaiting the next APNs device token. Mutated only on
-    /// the main actor (see `awaitDeviceToken` and `handleDeviceToken`).
+    /// One-shot resolvers awaiting the next APNs device token. Keyed by a
+    /// per-call UUID so timeouts can remove their entry without affecting
+    /// siblings. Mutated only on the main actor (see `awaitDeviceToken` and
+    /// `handleDeviceToken`).
     @MainActor
-    private var tokenResolvers: [(String) -> Void] = []
+    private var tokenResolvers: [UUID: (String) -> Void] = [:]
 
     private override init() {
         super.init()
@@ -41,8 +43,8 @@ final class NotificationService: NSObject, @unchecked Sendable {
 
         // Notify any awaiters that were blocked waiting for the token.
         Task { @MainActor in
-            let resolvers = tokenResolvers
-            tokenResolvers.removeAll()
+            let resolvers = self.tokenResolvers.values
+            self.tokenResolvers.removeAll()
             for resolver in resolvers {
                 resolver(token)
             }
@@ -61,22 +63,27 @@ final class NotificationService: NSObject, @unchecked Sendable {
     func awaitDeviceToken(timeout: Duration = .seconds(3)) async -> String? {
         if let token = storedAPNsToken { return token }
 
+        let id = UUID()
         return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
             // `resumed` is only touched on the main actor, both by the resolver
             // (invoked from `handleDeviceToken`'s main-actor hop) and by the
             // timeout task below (also hops to the main actor). No lock needed.
             let state = ResumeState()
 
-            tokenResolvers.append { token in
-                guard !state.resumed else { return }
-                state.resumed = true
-                continuation.resume(returning: token)
+            tokenResolvers[id] = { [weak self] token in
+                Task { @MainActor in
+                    guard !state.resumed else { return }
+                    state.resumed = true
+                    self?.tokenResolvers[id] = nil
+                    continuation.resume(returning: token)
+                }
             }
 
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 try? await Task.sleep(for: timeout)
                 guard !state.resumed else { return }
                 state.resumed = true
+                self?.tokenResolvers[id] = nil
                 continuation.resume(returning: nil)
             }
         }

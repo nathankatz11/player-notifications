@@ -6,6 +6,7 @@ import {
   pgEnum,
   uuid,
   integer,
+  index,
 } from "drizzle-orm/pg-core";
 
 // Enums
@@ -49,16 +50,27 @@ export const subscriptions = pgTable("subscriptions", {
 });
 
 // Alerts
-export const alerts = pgTable("alerts", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  subscriptionId: uuid("subscription_id").notNull().references(() => subscriptions.id),
-  userId: uuid("user_id").notNull().references(() => users.id),
-  message: text("message").notNull(),
-  sentAt: timestamp("sent_at").notNull().defaultNow(),
-  deliveryMethod: text("delivery_method").notNull(),
-  gameId: text("game_id").notNull(),
-  eventDescription: text("event_description").notNull(),
-});
+export const alerts = pgTable(
+  "alerts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    subscriptionId: uuid("subscription_id").notNull().references(() => subscriptions.id),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    message: text("message").notNull(),
+    sentAt: timestamp("sent_at").notNull().defaultNow(),
+    deliveryMethod: text("delivery_method").notNull(),
+    gameId: text("game_id").notNull(),
+    eventDescription: text("event_description").notNull(),
+  },
+  (t) => [
+    index("alerts_dedupe_idx").on(
+      t.subscriptionId,
+      t.gameId,
+      t.eventDescription,
+      t.sentAt
+    ),
+  ]
+);
 
 // Rate limits (fixed-window counter keyed by caller identity + bucket name)
 export const rateLimits = pgTable("rate_limits", {

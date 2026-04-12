@@ -161,30 +161,39 @@ export async function matchAndAlert(
 
   if (matchingSubs.length === 0) return 0;
 
+  // Batched dedupe: fetch all existing (subscriptionId, gameId, eventDescription)
+  // rows from the last 24h in ONE query instead of one per matching sub.
+  // Guards against cron retries that re-deliver the same plays when the
+  // games.lastPlayId checkpoint didn't advance.
+  const matchingSubIds = matchingSubs.map((s) => s.id);
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const existing = matchingSubIds.length > 0
+    ? await db
+        .select({
+          subscriptionId: alerts.subscriptionId,
+          gameId: alerts.gameId,
+          eventDescription: alerts.eventDescription,
+        })
+        .from(alerts)
+        .where(
+          and(
+            inArray(alerts.subscriptionId, matchingSubIds),
+            eq(alerts.gameId, gameId),
+            eq(alerts.eventDescription, play.text),
+            gte(alerts.sentAt, twentyFourHoursAgo)
+          )
+        )
+    : [];
+
   let dispatched = 0;
 
   for (const sub of matchingSubs) {
-    // Dedupe: if a cron invocation failed mid-iteration and the checkpoint
-    // (games.lastPlayId) didn't advance, a retry will re-deliver the same
-    // plays. Guard against that by checking the alerts table for a matching
-    // (subscriptionId, gameId, eventDescription) row in the last 24 hours.
-    // Check fires AFTER the match+trigger check so we don't pay a db roundtrip
-    // on plays that wouldn't match anyway.
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const existing = await db
-      .select({ id: alerts.id })
-      .from(alerts)
-      .where(
-        and(
-          eq(alerts.subscriptionId, sub.id),
-          eq(alerts.gameId, gameId),
-          eq(alerts.eventDescription, play.text),
-          gte(alerts.sentAt, twentyFourHoursAgo)
-        )
-      )
-      .limit(1);
-
-    if (existing.length > 0) {
+    const candidate: AlertLike = {
+      subscriptionId: sub.id,
+      gameId,
+      eventDescription: play.text,
+    };
+    if (isDuplicateAlert(candidate, existing)) {
       log.info("alerts.dedupe_skip", {
         subscriptionId: sub.id,
         gameId,
@@ -261,17 +270,28 @@ export async function dispatchTeamResult(
       : "";
   const emoji = LEAGUE_EMOJI[league] ?? "🏅";
 
+  // Batched dedupe: fetch all (subscriptionId, gameId) rows for candidate subs
+  // in ONE query. team-result dedupe ignores eventDescription (there's only
+  // ever one team_result per sub per game), so we key on (sub, game) only.
+  const candidateIds = candidates.map((s) => s.id);
+  const existingTeamAlerts = candidateIds.length > 0
+    ? await db
+        .select({ subscriptionId: alerts.subscriptionId, gameId: alerts.gameId })
+        .from(alerts)
+        .where(
+          and(
+            inArray(alerts.subscriptionId, candidateIds),
+            eq(alerts.gameId, event.id)
+          )
+        )
+    : [];
+  const firedSubIds = new Set(existingTeamAlerts.map((a) => a.subscriptionId));
+
   let dispatched = 0;
 
   for (const sub of candidates) {
     if (!matchesTeamResult(event, sub)) continue;
-
-    const [existing] = await db
-      .select({ id: alerts.id })
-      .from(alerts)
-      .where(and(eq(alerts.subscriptionId, sub.id), eq(alerts.gameId, event.id)))
-      .limit(1);
-    if (existing) continue;
+    if (firedSubIds.has(sub.id)) continue;
 
     const team = comp.competitors.find((c) => c.team.id === sub.entityId);
     const teamName = team?.team.displayName ?? "Team";

@@ -20,6 +20,8 @@ struct AddAlertView: View {
     @State private var selectedLeague: League = .nba
     @State private var isCreating = false
     @State private var showSuccess = false
+    @State private var searchTask: Task<Void, Never>?
+    @State private var leagueTask: Task<Void, Never>?
     @FocusState private var searchFocused: Bool
 
     init(initialLeague: League? = nil) {
@@ -91,10 +93,19 @@ struct AddAlertView: View {
             .onChange(of: selectedLeague) { _, newValue in
                 viewModel.selectedLeague = newValue
                 viewModel.searchResults = []
-                Task { await reloadForLeague() }
-                // Re-run any in-flight query against new league
+                leagueTask?.cancel()
+                leagueTask = Task {
+                    await reloadForLeague()
+                }
+                // Re-run any in-flight query against the new league, debounced
+                // and cancelable alongside keystroke-driven searches.
                 if !viewModel.searchQuery.isEmpty {
-                    Task { await viewModel.searchEntities() }
+                    searchTask?.cancel()
+                    searchTask = Task {
+                        try? await Task.sleep(for: .milliseconds(250))
+                        guard !Task.isCancelled else { return }
+                        await viewModel.searchEntities()
+                    }
                 }
             }
         }
@@ -202,8 +213,13 @@ struct AddAlertView: View {
         .background(
             RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12))
         )
-        .onChange(of: viewModel.searchQuery) {
-            Task { await viewModel.searchEntities() }
+        .onChange(of: viewModel.searchQuery) { _, _ in
+            searchTask?.cancel()
+            searchTask = Task {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
+                await viewModel.searchEntities()
+            }
         }
     }
 
