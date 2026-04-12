@@ -3,6 +3,7 @@ import { eq, and, count } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { subscriptions, users } from "@/lib/db/schema";
+import { fetchPlayerTeamId, type League } from "@/lib/espn";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 const FREE_TIER_LIMIT = 10;
@@ -76,6 +77,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // For player subs, resolve the player's current team so the client can
+  // filter "my games today" later. Best-effort — null is fine.
+  let teamId: string | null = null;
+  if (type === "player_stat") {
+    teamId = await fetchPlayerTeamId(league as League, entityId);
+  } else {
+    teamId = entityId;
+  }
+
   const [sub] = await db
     .insert(subscriptions)
     .values({
@@ -84,6 +94,7 @@ export async function POST(req: NextRequest) {
       league,
       entityId,
       entityName,
+      teamId,
       trigger,
       deliveryMethod: deliveryMethod ?? "push",
     })

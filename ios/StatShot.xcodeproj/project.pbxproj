@@ -42,7 +42,8 @@
 		1D9279201DDF6F818D4D9960 /* AddAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAlertView.swift; sourceTree = "<group>"; };
 		26F8FF2BFE2401DF2A59D205 /* AlertHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertHistoryView.swift; sourceTree = "<group>"; };
 		43C805ABE74D556008DA9ED8 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		5673D5F0179304413C4A8F11 /* StatShot.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = StatShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5673D5F0179304413C4A8F11 /* StatShot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StatShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6F57BD88447B0A6A9C9FEEB5 /* StatShot.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StatShot.entitlements; sourceTree = "<group>"; };
 		705DA812ED0439AAA1B9F568 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		765BB5EAC4D67377DECF713C /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
 		79FE312C2B4909F302AEF8A3 /* AlertHistoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertHistoryViewModel.swift; sourceTree = "<group>"; };
@@ -93,6 +94,7 @@
 			isa = PBXGroup;
 			children = (
 				0765D72796FC27EBDBD95CE3 /* Assets.xcassets */,
+				6F57BD88447B0A6A9C9FEEB5 /* StatShot.entitlements */,
 				DD5F1AC698769D67AA0486F3 /* App */,
 				61371EA024FA3C37B0881841 /* Models */,
 				F082A751062F7E918E4F44E6 /* Services */,
@@ -189,8 +191,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
-				TargetAttributes = {
-				};
 			};
 			buildConfigurationList = 3DA2BE40115E154B5A7FD592 /* Build configuration list for PBXProject "StatShot" */;
 			developmentRegion = en;
@@ -385,7 +385,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = StatShot/StatShot.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = LTMRG8UV3U;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = StatShot/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -403,7 +405,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = StatShot/StatShot.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = LTMRG8UV3U;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = StatShot/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

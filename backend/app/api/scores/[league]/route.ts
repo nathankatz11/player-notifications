@@ -37,6 +37,7 @@ export async function GET(
       clock: e.status.displayClock,
       period: e.status.period,
       competitors: e.competitions[0]?.competitors.map((c) => ({
+        teamId: c.team.id,
         team: c.team.displayName,
         abbreviation: c.team.abbreviation,
         score: c.score,

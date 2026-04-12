@@ -161,6 +161,36 @@ export async function fetchTeams(league: League): Promise<ESPNTeam[]> {
   }));
 }
 
+/**
+ * Best-effort lookup of a player's current team ID via ESPN's common athlete
+ * endpoint. Returns null on any error or missing field — the caller should
+ * treat a missing team id as "unknown" and proceed without it.
+ */
+export async function fetchPlayerTeamId(
+  league: League,
+  playerId: string
+): Promise<string | null> {
+  const path = LEAGUE_PATHS[league];
+  try {
+    const res = await fetch(`${ESPN_BASE}/${path}/athletes/${playerId}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    // ESPN shape varies; common locations for the team id:
+    const raw =
+      data?.athlete?.team?.id ??
+      data?.team?.id ??
+      null;
+    return raw ? String(raw) : null;
+  } catch (err) {
+    log.warn("espn.player_team_lookup_failed", {
+      league,
+      playerId,
+      error: String(err),
+    });
+    return null;
+  }
+}
+
 /** Search ESPN for players/teams */
 export async function searchEntities(
   query: string,

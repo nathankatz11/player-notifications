@@ -45,6 +45,7 @@ struct LiveGame: Codable, Identifiable {
 }
 
 struct Competitor: Codable {
+    let teamId: String?
     let team: String
     let abbreviation: String
     let score: String

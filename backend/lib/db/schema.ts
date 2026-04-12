@@ -34,6 +34,10 @@ export const subscriptions = pgTable("subscriptions", {
   league: leagueEnum("league").notNull(),
   entityId: text("entity_id").notNull(),
   entityName: text("entity_name").notNull(),
+  // For player subscriptions: ESPN id of the player's current team. Populated
+  // server-side at creation time so the client can filter "my games today"
+  // without fanning out per-player ESPN lookups.
+  teamId: text("team_id"),
   trigger: text("trigger").notNull(),
   deliveryMethod: deliveryMethodEnum("delivery_method").notNull().default("push"),
   active: boolean("active").notNull().default(true),
