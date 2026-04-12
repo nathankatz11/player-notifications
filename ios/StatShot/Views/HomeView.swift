@@ -387,18 +387,14 @@ private struct FavoriteChip: View {
 
     @ViewBuilder
     private var avatar: some View {
-        if subscription.type == .playerStat,
-           let url = League.playerHeadshotURL(
+        if subscription.type == .playerStat {
+            PlayerAvatar(
+                name: subscription.entityName,
                 espnId: subscription.entityId,
                 league: subscription.league,
+                storedURL: subscription.photoUrl,
                 size: 108
-           ) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image): image.resizable().scaledToFill()
-                default: placeholder
-                }
-            }
+            )
         } else {
             AsyncImage(url: League.teamLogoURL(
                 espnId: subscription.entityId,
@@ -535,18 +531,14 @@ private struct AlertFeedCard: View {
     @ViewBuilder
     private var avatar: some View {
         if let sub = subscription {
-            if sub.type == .playerStat,
-               let url = League.playerHeadshotURL(
+            if sub.type == .playerStat {
+                PlayerAvatar(
+                    name: sub.entityName,
                     espnId: sub.entityId,
                     league: sub.league,
+                    storedURL: sub.photoUrl,
                     size: 84
-               ) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image): image.resizable().scaledToFill()
-                    default: fallback(color: sub.league.color, icon: sub.league.icon)
-                    }
-                }
+                )
             } else {
                 AsyncImage(url: League.teamLogoURL(
                     espnId: sub.entityId,

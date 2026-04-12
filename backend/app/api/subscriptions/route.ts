@@ -3,7 +3,7 @@ import { eq, and, count } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { subscriptions, users } from "@/lib/db/schema";
-import { fetchPlayerTeamId, type League } from "@/lib/espn";
+import { fetchPlayerDetails, type League } from "@/lib/espn";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 const FREE_TIER_LIMIT = 10;
@@ -77,11 +77,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // For player subs, resolve the player's current team so the client can
-  // filter "my games today" later. Best-effort — null is fine.
+  // For player subs, resolve the player's current team + headshot URL via
+  // ESPN so the client can filter "my games today" and render a reliable
+  // avatar. Best-effort — nulls are fine.
   let teamId: string | null = null;
+  let photoUrl: string | null = null;
   if (type === "player_stat") {
-    teamId = await fetchPlayerTeamId(league as League, entityId);
+    const details = await fetchPlayerDetails(league as League, entityId);
+    teamId = details.teamId;
+    photoUrl = details.headshotUrl;
   } else {
     teamId = entityId;
   }
@@ -95,6 +99,7 @@ export async function POST(req: NextRequest) {
       entityId,
       entityName,
       teamId,
+      photoUrl,
       trigger,
       deliveryMethod: deliveryMethod ?? "push",
     })

@@ -103,27 +103,15 @@ struct AlertDetailView: View {
                     .strokeBorder(leagueColor, lineWidth: 6)
                     .frame(width: 120, height: 120)
 
-                if isPlayerSubscription,
-                   let url = League.playerHeadshotURL(espnId: subscription.entityId, league: subscription.league, size: 120) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 108, height: 108)
-                                .clipShape(Circle())
-                        default:
-                            Circle()
-                                .fill(leagueColor.opacity(0.15))
-                                .frame(width: 108, height: 108)
-                                .overlay {
-                                    Image(systemName: subscription.league.icon)
-                                        .font(.system(size: 44, weight: .medium))
-                                        .foregroundStyle(leagueColor)
-                                }
-                        }
-                    }
+                if isPlayerSubscription {
+                    PlayerAvatar(
+                        name: subscription.entityName,
+                        espnId: subscription.entityId,
+                        league: subscription.league,
+                        storedURL: subscription.photoUrl,
+                        size: 120
+                    )
+                    .frame(width: 108, height: 108)
                 } else {
                     // Team subscriptions: show team logo
                     AsyncImage(url: League.teamLogoURL(espnId: subscription.entityId, league: subscription.league)) { phase in

@@ -32,6 +32,7 @@
 		DA3F97751FD3975F5E956433 /* AlertHistoryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FE312C2B4909F302AEF8A3 /* AlertHistoryViewModel.swift */; };
 		DE31A329E0A77DB60DE3EA9D /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B2CD9BE475CE2AB13E3CD18 /* User.swift */; };
 		E1ED74F6C59FCC0C66C425B5 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D16C9990E01908BD5FDC16E1 /* NotificationService.swift */; };
+		E93B10A768092796F7754AB0 /* PlayerAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65C793C479A49D8EA0531A50 /* PlayerAvatar.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,7 +43,8 @@
 		1D9279201DDF6F818D4D9960 /* AddAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAlertView.swift; sourceTree = "<group>"; };
 		26F8FF2BFE2401DF2A59D205 /* AlertHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertHistoryView.swift; sourceTree = "<group>"; };
 		43C805ABE74D556008DA9ED8 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		5673D5F0179304413C4A8F11 /* StatShot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StatShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5673D5F0179304413C4A8F11 /* StatShot.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = StatShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		65C793C479A49D8EA0531A50 /* PlayerAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerAvatar.swift; sourceTree = "<group>"; };
 		6F57BD88447B0A6A9C9FEEB5 /* StatShot.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StatShot.entitlements; sourceTree = "<group>"; };
 		705DA812ED0439AAA1B9F568 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		765BB5EAC4D67377DECF713C /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
@@ -107,6 +109,7 @@
 		5D6B0102FDB0B0DEE2448DEA /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				65C793C479A49D8EA0531A50 /* PlayerAvatar.swift */,
 				B2ECE6735A24CE63BFADB811 /* ToastView.swift */,
 			);
 			path = Components;
@@ -191,6 +194,8 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+				};
 			};
 			buildConfigurationList = 3DA2BE40115E154B5A7FD592 /* Build configuration list for PBXProject "StatShot" */;
 			developmentRegion = en;
@@ -243,6 +248,7 @@
 				E1ED74F6C59FCC0C66C425B5 /* NotificationService.swift in Sources */,
 				811E343DEAC7865293F0152A /* OnboardingView.swift in Sources */,
 				3B2BB6A2871607EFD8D7549F /* PaywallView.swift in Sources */,
+				E93B10A768092796F7754AB0 /* PlayerAvatar.swift in Sources */,
 				102ACDFF54665C8DC08EC2C0 /* ScoreFeedView.swift in Sources */,
 				96FF00524427D90591D2C6EB /* SettingsView.swift in Sources */,
 				535684E6D6CF0926AF60042A /* StatShotApp.swift in Sources */,
@@ -387,7 +393,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = StatShot/StatShot.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = LTMRG8UV3U;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = StatShot/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -407,7 +412,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = StatShot/StatShot.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = LTMRG8UV3U;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = StatShot/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

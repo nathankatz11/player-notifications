@@ -237,6 +237,26 @@ describe("isDuplicateAlert", () => {
     ).toBe(false);
   });
 
+  it("three-case tuple check: exact match true, diff sub false, diff event false", () => {
+    const existing: AlertLike[] = [{ ...candidate }];
+
+    // 1. Exact match (same sub, game, event) → true
+    expect(isDuplicateAlert({ ...candidate }, existing)).toBe(true);
+
+    // 2. Different subscriptionId → false
+    expect(
+      isDuplicateAlert({ ...candidate, subscriptionId: "sub-other" }, existing)
+    ).toBe(false);
+
+    // 3. Different eventDescription → false
+    expect(
+      isDuplicateAlert(
+        { ...candidate, eventDescription: "Different play text" },
+        existing
+      )
+    ).toBe(false);
+  });
+
   it("two identical event notifications produce only one alert row (simulated)", () => {
     // Simulate the dedupe-loop a caller would run: feed two identical events,
     // the second should see the first already in `existing` and skip.

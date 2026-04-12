@@ -3,11 +3,12 @@
  * Matches ESPN plays to user subscriptions and dispatches notifications.
  */
 
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, gte, inArray } from "drizzle-orm";
 import { db } from "./db";
 import { subscriptions, alerts } from "./db/schema";
 import { sendPushToUser } from "./apns";
 import { sendSMSToUser } from "./twilio";
+import { log } from "./logger";
 import type { ESPNPlay, ESPNEvent, League } from "./espn";
 
 type Trigger = string;
@@ -163,6 +164,35 @@ export async function matchAndAlert(
   let dispatched = 0;
 
   for (const sub of matchingSubs) {
+    // Dedupe: if a cron invocation failed mid-iteration and the checkpoint
+    // (games.lastPlayId) didn't advance, a retry will re-deliver the same
+    // plays. Guard against that by checking the alerts table for a matching
+    // (subscriptionId, gameId, eventDescription) row in the last 24 hours.
+    // Check fires AFTER the match+trigger check so we don't pay a db roundtrip
+    // on plays that wouldn't match anyway.
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const existing = await db
+      .select({ id: alerts.id })
+      .from(alerts)
+      .where(
+        and(
+          eq(alerts.subscriptionId, sub.id),
+          eq(alerts.gameId, gameId),
+          eq(alerts.eventDescription, play.text),
+          gte(alerts.sentAt, twentyFourHoursAgo)
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      log.info("alerts.dedupe_skip", {
+        subscriptionId: sub.id,
+        gameId,
+        eventDescription: play.text,
+      });
+      continue;
+    }
+
     // Insert the alert row first so we have an `alertId` to embed in the push
     // payload (enables iOS deep-linking from the notification tap).
     const [alertRow] = await db

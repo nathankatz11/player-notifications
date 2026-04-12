@@ -38,6 +38,10 @@ export const subscriptions = pgTable("subscriptions", {
   // server-side at creation time so the client can filter "my games today"
   // without fanning out per-player ESPN lookups.
   teamId: text("team_id"),
+  // For player subscriptions: ESPN-resolved headshot URL captured once at
+  // creation time. Avoids per-render URL guessing (ESPN's combiner path
+  // 404s or returns a silhouette for many athletes).
+  photoUrl: text("photo_url"),
   trigger: text("trigger").notNull(),
   deliveryMethod: deliveryMethodEnum("delivery_method").notNull().default("push"),
   active: boolean("active").notNull().default(true),
@@ -67,8 +71,6 @@ export const rateLimits = pgTable("rate_limits", {
 export const games = pgTable("games", {
   id: text("id").primaryKey(), // ESPN game ID
   league: leagueEnum("league").notNull(),
-  homeTeam: text("home_team").notNull(),
-  awayTeam: text("away_team").notNull(),
   status: gameStatusEnum("status").notNull().default("pre"),
   lastPolledAt: timestamp("last_polled_at"),
   lastPlayId: text("last_play_id"),

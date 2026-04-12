@@ -423,14 +423,12 @@ private struct SearchRow: View {
     @ViewBuilder
     private var avatar: some View {
         if result.type == "player" {
-            AsyncImage(url: League.playerHeadshotURL(espnId: result.id, league: league, size: 72)) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().scaledToFill()
-                default:
-                    placeholder(icon: "person.fill")
-                }
-            }
+            PlayerAvatar(
+                name: result.name,
+                espnId: result.id,
+                league: league,
+                size: 72
+            )
         } else {
             AsyncImage(
                 url: result.imageUrl.flatMap { URL(string: $0) }
@@ -554,12 +552,12 @@ private struct TriggerStep: View {
     @ViewBuilder
     private var avatar: some View {
         if entity.type == "player" {
-            AsyncImage(url: League.playerHeadshotURL(espnId: entity.id, league: league, size: 120)) { phase in
-                switch phase {
-                case .success(let image): image.resizable().scaledToFill()
-                default: placeholder(icon: "person.fill")
-                }
-            }
+            PlayerAvatar(
+                name: entity.name,
+                espnId: entity.id,
+                league: league,
+                size: 120
+            )
         } else {
             AsyncImage(
                 url: entity.imageUrl.flatMap { URL(string: $0) }

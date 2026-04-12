@@ -490,18 +490,14 @@ private struct AlertHistoryCard: View {
 
     @ViewBuilder
     private func avatarImage(for sub: Subscription) -> some View {
-        if sub.type == .playerStat,
-           let url = League.playerHeadshotURL(espnId: sub.entityId, league: sub.league, size: 96) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                default:
-                    fallbackIcon(for: sub)
-                }
-            }
+        if sub.type == .playerStat {
+            PlayerAvatar(
+                name: sub.entityName,
+                espnId: sub.entityId,
+                league: sub.league,
+                storedURL: sub.photoUrl,
+                size: 96
+            )
         } else if sub.type == .teamEvent,
                   let url = League.teamLogoURL(espnId: sub.entityId, league: sub.league) {
             AsyncImage(url: url) { phase in

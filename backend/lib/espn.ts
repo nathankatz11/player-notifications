@@ -161,33 +161,49 @@ export async function fetchTeams(league: League): Promise<ESPNTeam[]> {
   }));
 }
 
+export interface PlayerDetails {
+  teamId: string | null;
+  headshotUrl: string | null;
+}
+
 /**
- * Best-effort lookup of a player's current team ID via ESPN's common athlete
- * endpoint. Returns null on any error or missing field — the caller should
- * treat a missing team id as "unknown" and proceed without it.
+ * Best-effort lookup of a player's current team ID and canonical headshot URL
+ * via ESPN's athlete endpoint. One network call, two fields. Returns nulls on
+ * any failure — callers should treat missing fields as "unknown" and proceed.
+ *
+ * The ESPN `athlete.headshot.href` value is the URL ESPN itself uses on
+ * espn.com and is more reliable than the combiner path we'd otherwise guess.
  */
-export async function fetchPlayerTeamId(
+export async function fetchPlayerDetails(
   league: League,
   playerId: string
-): Promise<string | null> {
+): Promise<PlayerDetails> {
   const path = LEAGUE_PATHS[league];
   try {
     const res = await fetch(`${ESPN_BASE}/${path}/athletes/${playerId}`);
-    if (!res.ok) return null;
+    if (!res.ok) return { teamId: null, headshotUrl: null };
     const data = await res.json();
-    // ESPN shape varies; common locations for the team id:
-    const raw =
+
+    const teamRaw =
       data?.athlete?.team?.id ??
       data?.team?.id ??
       null;
-    return raw ? String(raw) : null;
+    const headshotRaw =
+      data?.athlete?.headshot?.href ??
+      data?.headshot?.href ??
+      null;
+
+    return {
+      teamId: teamRaw ? String(teamRaw) : null,
+      headshotUrl: headshotRaw ? String(headshotRaw) : null,
+    };
   } catch (err) {
-    log.warn("espn.player_team_lookup_failed", {
+    log.warn("espn.player_details_lookup_failed", {
       league,
       playerId,
       error: String(err),
     });
-    return null;
+    return { teamId: null, headshotUrl: null };
   }
 }
 

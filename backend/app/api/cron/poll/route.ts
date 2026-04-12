@@ -158,8 +158,6 @@ async function processGame(league: League, event: ESPNEvent): Promise<number> {
     .values({
       id: gameId,
       league,
-      homeTeam: "",
-      awayTeam: "",
       status: state === "post" ? "post" : "in",
       lastPolledAt: new Date(),
       lastPlayId: latestPlayId,

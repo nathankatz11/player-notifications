@@ -333,6 +333,7 @@ struct Subscription: Codable, Identifiable, Hashable {
     let entityId: String
     let entityName: String
     let teamId: String?
+    let photoUrl: String?
     let trigger: TriggerType
     let deliveryMethod: DeliveryMethod
     var active: Bool
