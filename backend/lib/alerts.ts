@@ -15,7 +15,13 @@ type Trigger = string;
 
 export interface ParsedPlay {
   entityId: string;
-  trigger: Trigger;
+  /**
+   * Triggers that should fire for this play. A single play can match several
+   * — e.g. a made three-pointer matches both "three_pointer" and
+   * "points_scored". `triggers[0]` is the canonical label used when
+   * formatting the alert message.
+   */
+  triggers: Trigger[];
   description: string;
 }
 
@@ -69,6 +75,7 @@ const TRIGGER_LABEL: Record<string, string> = {
   technical_foul: "TECHNICAL FOUL",
   red_card: "RED CARD",
   three_pointer: "THREE",
+  points_scored: "SCORE",
   block: "BLOCK",
   dunk: "DUNK",
   steal: "STEAL",
@@ -145,16 +152,17 @@ export async function matchAndAlert(
   const parsed = parsePlay(play, league, event);
   if (!parsed) return 0;
 
-  const { entityId, trigger, description } = parsed;
+  const { entityId, triggers, description } = parsed;
 
-  // Find matching subscriptions
+  // Find matching subscriptions — a play can carry multiple triggers, so
+  // match any subscription whose trigger is in the set.
   const matchingSubs = await db
     .select()
     .from(subscriptions)
     .where(
       and(
         eq(subscriptions.entityId, entityId),
-        eq(subscriptions.trigger, trigger),
+        inArray(subscriptions.trigger, triggers),
         eq(subscriptions.active, true)
       )
     );
@@ -381,7 +389,7 @@ export function matchesSubscription(
 ): boolean {
   if (!sub.active) return false;
   if (sub.entityId !== parsed.entityId) return false;
-  if (sub.trigger !== parsed.trigger) return false;
+  if (!parsed.triggers.includes(sub.trigger)) return false;
   return true;
 }
 
@@ -435,26 +443,46 @@ export function isDuplicateAlert(
   );
 }
 
+const BASKETBALL_LEAGUES: League[] = ["nba", "ncaamb"];
+
 export function parsePlay(play: ESPNPlay, league: League, event?: ESPNEvent): ParsedPlay | null {
   const playType = play.type?.text?.toLowerCase() ?? "";
+  const text = play.text?.toLowerCase() ?? "";
   const playerName = play.participants?.[0]?.athlete?.displayName ?? "Unknown";
   const playerId = play.participants?.[0]?.athlete?.id ?? "";
   const teamId = play.team?.id ?? "";
 
   if (!playerId && !teamId) return null;
 
-  let trigger: Trigger | undefined = TRIGGER_MAP[playType];
+  const triggers: Trigger[] = [];
 
-  // NBA text-based triggers
-  if (!trigger) {
-    const text = play.text?.toLowerCase() ?? "";
-    if (text.includes("three point") && play.scoreValue === 3) trigger = "three_pointer";
-    else if (text.includes("block")) trigger = "block";
-    else if (playType.includes("dunk")) trigger = "dunk";
-    else if (text.includes("steal")) trigger = "steal";
+  // Primary trigger from the play-type map.
+  const primary = TRIGGER_MAP[playType];
+  if (primary) triggers.push(primary);
+
+  // Basketball text-based triggers (NBA + NCAAMB).
+  if (BASKETBALL_LEAGUES.includes(league)) {
+    if (!triggers.includes("three_pointer") &&
+        text.includes("three point") && play.scoreValue === 3) {
+      triggers.push("three_pointer");
+    }
+    if (!triggers.includes("block") && text.includes("block")) {
+      triggers.push("block");
+    }
+    if (!triggers.includes("dunk") && playType.includes("dunk")) {
+      triggers.push("dunk");
+    }
+    if (!triggers.includes("steal") && text.includes("steal")) {
+      triggers.push("steal");
+    }
+    // Any made basket (or free throw) also counts as points_scored.
+    if (!triggers.includes("points_scored") &&
+        typeof play.scoreValue === "number" && play.scoreValue >= 1) {
+      triggers.push("points_scored");
+    }
   }
 
-  if (!trigger) return null;
+  if (triggers.length === 0) return null;
 
   // Build a short play blurb: prefer player name + raw text, fall back to raw text
   const playText = playerName !== "Unknown"
@@ -463,7 +491,7 @@ export function parsePlay(play: ESPNPlay, league: League, event?: ESPNEvent): Pa
 
   return {
     entityId: playerId || teamId,
-    trigger,
-    description: formatAlertMessage(league, trigger, playText, event),
+    triggers,
+    description: formatAlertMessage(league, triggers[0], playText, event),
   };
 }

@@ -43,12 +43,13 @@ function makeSub(overrides: Partial<SubscriptionLike> = {}): SubscriptionLike {
   };
 }
 
-function makeParsed(overrides: Partial<ParsedPlay> = {}): ParsedPlay {
+function makeParsed(overrides: Partial<ParsedPlay> & { trigger?: string } = {}): ParsedPlay {
+  const { trigger, ...rest } = overrides;
   return {
     entityId: "player-123",
-    trigger: "three_pointer",
+    triggers: trigger ? [trigger] : ["three_pointer"],
     description: "🏀 THREE — Steph Curry drains it.",
-    ...overrides,
+    ...rest,
   };
 }
 
@@ -309,7 +310,7 @@ describe("parsePlay", () => {
     const parsed = parsePlay(play, "nba");
     expect(parsed).not.toBeNull();
     expect(parsed!.entityId).toBe("p-30");
-    expect(parsed!.trigger).toBe("three_pointer");
+    expect(parsed!.triggers).toContain("three_pointer");
   });
 
   it("maps known play type strings via TRIGGER_MAP (e.g. turnover)", () => {
@@ -319,7 +320,7 @@ describe("parsePlay", () => {
       participants: [{ athlete: { id: "p-7", displayName: "Player" } }],
     });
     const parsed = parsePlay(play, "nba");
-    expect(parsed?.trigger).toBe("turnover");
+    expect(parsed?.triggers).toContain("turnover");
   });
 
   it("falls back to team entityId when there's no player participant", () => {
@@ -330,7 +331,20 @@ describe("parsePlay", () => {
     });
     const parsed = parsePlay(play, "nba");
     expect(parsed?.entityId).toBe("team-42");
-    expect(parsed?.trigger).toBe("turnover");
+    expect(parsed?.triggers).toContain("turnover");
+  });
+
+  it("adds points_scored alongside three_pointer for NBA makes", () => {
+    const play = makePlay({
+      text: "Curry three point jumper",
+      type: { id: "1", text: "Three Point Jumper" },
+      participants: [{ athlete: { id: "p-30", displayName: "Stephen Curry" } }],
+      scoreValue: 3,
+    });
+    const parsed = parsePlay(play, "nba");
+    expect(parsed?.triggers).toEqual(
+      expect.arrayContaining(["three_pointer", "points_scored"])
+    );
   });
 });
 
@@ -359,9 +373,8 @@ describe("parsePlay + matchesSubscription together", () => {
     ];
 
     const matched = subs.filter((s) => matchesSubscription(parsed, s));
-    expect(matched).toHaveLength(1);
-    expect(matched[0].entityId).toBe("p-30");
-    expect(matched[0].trigger).toBe("three_pointer");
-    expect(matched[0].active).toBe(true);
+    // Parsed NBA three fires both three_pointer AND points_scored.
+    expect(matched.map((m) => m.trigger)).toContain("three_pointer");
+    expect(matched.every((m) => m.active && m.entityId === "p-30")).toBe(true);
   });
 });
