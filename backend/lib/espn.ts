@@ -211,6 +211,60 @@ export async function fetchPlayerDetails(
   }
 }
 
+export interface RosterPlayer {
+  id: string;
+  name: string;
+  headshotUrl: string | null;
+  position: string | null;
+}
+
+/**
+ * Fetch the current roster for a team. Returns a flat list — ESPN groups by
+ * position (pitchers / batters / etc.), we flatten and surface the group name
+ * as `position` on each player.
+ */
+export async function fetchTeamRoster(
+  league: League,
+  teamId: string
+): Promise<RosterPlayer[]> {
+  const path = LEAGUE_PATHS[league];
+  const res = await fetch(`${ESPN_BASE}/${path}/teams/${teamId}/roster`);
+  if (!res.ok) {
+    throw new Error(`ESPN roster error: ${res.status} for ${league}/${teamId}`);
+  }
+  const data = await res.json();
+
+  const groups: Array<{
+    position?: string;
+    items?: Array<{
+      id?: string | number;
+      displayName?: string;
+      fullName?: string;
+      headshot?: { href?: string };
+      position?: { displayName?: string; abbreviation?: string };
+    }>;
+  }> = data.athletes ?? [];
+
+  const players: RosterPlayer[] = [];
+  for (const group of groups) {
+    const groupLabel = group.position ?? null;
+    for (const item of group.items ?? []) {
+      if (!item.id) continue;
+      players.push({
+        id: String(item.id),
+        name: String(item.displayName ?? item.fullName ?? ""),
+        headshotUrl: item.headshot?.href ?? null,
+        position:
+          item.position?.abbreviation ??
+          item.position?.displayName ??
+          groupLabel,
+      });
+    }
+  }
+
+  return players;
+}
+
 /** Search ESPN for players/teams */
 export async function searchEntities(
   query: string,

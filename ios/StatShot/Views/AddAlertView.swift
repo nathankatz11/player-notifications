@@ -1,8 +1,26 @@
 import SwiftUI
 
+/// Context for the game-scoped picker mode — shown when the user taps
+/// "Follow a Player from This Game" inside `GameDetailSheet`. Scopes the
+/// picker to the two teams in that game and their rosters, instead of a
+/// free-text search.
+struct GameContext: Equatable {
+    struct Side: Equatable {
+        let teamId: String
+        let teamName: String
+        let teamAbbr: String
+    }
+    let league: League
+    let away: Side
+    let home: Side
+}
+
 /// Two-decision alert creation:
 ///   1. Who — unified player + team search (league inferred from the active filter).
 ///   2. What — tap a big trigger chip → creates the alert and dismisses.
+///
+/// When initialized with a `GameContext`, the first step is a roster picker
+/// for just the two teams in the game (no free-text search).
 ///
 /// Delivery method defaults to `.push`; users change it later from AlertDetailView.
 struct AddAlertView: View {
@@ -10,6 +28,7 @@ struct AddAlertView: View {
     @State private var viewModel = SubscriptionViewModel()
 
     private let initialLeague: League?
+    private let gameContext: GameContext?
 
     private enum Step {
         case search
@@ -24,11 +43,26 @@ struct AddAlertView: View {
     @State private var leagueTask: Task<Void, Never>?
     @FocusState private var searchFocused: Bool
 
+    // Roster-mode state (only used when gameContext != nil)
+    @State private var selectedSide: RosterSide = .away
+    @State private var awayRoster: [RosterPlayer] = []
+    @State private var homeRoster: [RosterPlayer] = []
+    @State private var rosterLoading = false
+
+    private enum RosterSide { case away, home }
+
     init(initialLeague: League? = nil) {
         self.initialLeague = initialLeague
+        self.gameContext = nil
         if let league = initialLeague {
             _selectedLeague = State(initialValue: league)
         }
+    }
+
+    init(gameContext: GameContext) {
+        self.initialLeague = gameContext.league
+        self.gameContext = gameContext
+        _selectedLeague = State(initialValue: gameContext.league)
     }
 
     var body: some View {
@@ -36,7 +70,11 @@ struct AddAlertView: View {
             Group {
                 switch step {
                 case .search:
-                    searchStep
+                    if gameContext != nil {
+                        rosterStep
+                    } else {
+                        searchStep
+                    }
                 case let .trigger(entity, league):
                     TriggerStep(
                         entity: entity,
@@ -88,7 +126,11 @@ struct AddAlertView: View {
             .animation(.easeInOut(duration: 0.3), value: showSuccess)
             .task {
                 viewModel.selectedLeague = selectedLeague
-                await reloadForLeague()
+                if gameContext != nil {
+                    await loadRosters()
+                } else {
+                    await reloadForLeague()
+                }
             }
             .onChange(of: selectedLeague) { _, newValue in
                 viewModel.selectedLeague = newValue
@@ -122,6 +164,190 @@ struct AddAlertView: View {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.viewModel.loadTeams() }
             group.addTask { await self.viewModel.loadTrending() }
+        }
+    }
+
+    // MARK: - Step 1 (game-scoped): Roster picker
+
+    private var rosterStep: some View {
+        VStack(spacing: 0) {
+            if let ctx = gameContext {
+                sidePicker(ctx: ctx)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .padding(.bottom, 10)
+
+                Divider()
+
+                ScrollView {
+                    let side = selectedSide == .away ? ctx.away : ctx.home
+                    let roster = selectedSide == .away ? awayRoster : homeRoster
+                    LazyVStack(spacing: 8) {
+                        teamFollowRow(side: side, league: ctx.league)
+                        if rosterLoading && roster.isEmpty {
+                            ProgressView()
+                                .padding(.top, 24)
+                        } else if roster.isEmpty {
+                            Text("No roster available.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 24)
+                        } else {
+                            ForEach(roster) { player in
+                                rosterRow(player: player, league: ctx.league)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+            }
+        }
+    }
+
+    private func sidePicker(ctx: GameContext) -> some View {
+        HStack(spacing: 8) {
+            sideButton(ctx.away, side: .away, league: ctx.league)
+            sideButton(ctx.home, side: .home, league: ctx.league)
+        }
+    }
+
+    private func sideButton(_ side: GameContext.Side, side selected: RosterSide, league: League) -> some View {
+        let isOn = selectedSide == selected
+        return Button {
+            UISelectionFeedbackGenerator().selectionChanged()
+            selectedSide = selected
+        } label: {
+            HStack(spacing: 8) {
+                AsyncImage(
+                    url: League.teamLogoURL(espnId: side.teamId, league: league)
+                ) { image in
+                    image.resizable().scaledToFit()
+                } placeholder: {
+                    Circle().fill(league.color.opacity(0.2))
+                }
+                .frame(width: 22, height: 22)
+                Text(side.teamAbbr)
+                    .font(.subheadline.bold())
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(
+                isOn ? league.color.opacity(0.25) : Color.secondary.opacity(0.10),
+                in: Capsule()
+            )
+            .overlay(
+                isOn ? Capsule().strokeBorder(league.color, lineWidth: 1.5) : nil
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func teamFollowRow(side: GameContext.Side, league: League) -> some View {
+        Button {
+            let team = SearchResult(
+                id: side.teamId,
+                name: side.teamName,
+                type: "team",
+                imageUrl: nil
+            )
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            step = .trigger(team, league)
+        } label: {
+            HStack(spacing: 12) {
+                AsyncImage(
+                    url: League.teamLogoURL(espnId: side.teamId, league: league)
+                ) { image in
+                    image.resizable().scaledToFit()
+                } placeholder: {
+                    Circle().fill(league.color.opacity(0.2))
+                }
+                .frame(width: 40, height: 40)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Follow \(side.teamName)")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text("Team alerts (wins, losses…)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(12)
+            .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func rosterRow(player: RosterPlayer, league: League) -> some View {
+        Button {
+            let entity = SearchResult(
+                id: player.id,
+                name: player.name,
+                type: "player",
+                imageUrl: player.headshotUrl
+            )
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            step = .trigger(entity, league)
+        } label: {
+            HStack(spacing: 12) {
+                PlayerAvatar(
+                    name: player.name,
+                    espnId: player.id,
+                    league: league,
+                    storedURL: player.headshotUrl,
+                    size: 72
+                )
+                .frame(width: 40, height: 40)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(player.name)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.primary)
+                    if let pos = player.position, !pos.isEmpty {
+                        Text(pos)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+    }
+
+    @MainActor
+    private func loadRosters() async {
+        guard let ctx = gameContext else { return }
+        rosterLoading = true
+        defer { rosterLoading = false }
+
+        async let away = APIService.shared.fetchRoster(
+            league: ctx.league.rawValue,
+            teamId: ctx.away.teamId
+        )
+        async let home = APIService.shared.fetchRoster(
+            league: ctx.league.rawValue,
+            teamId: ctx.home.teamId
+        )
+        do {
+            awayRoster = try await away
+        } catch {
+            awayRoster = []
+        }
+        do {
+            homeRoster = try await home
+        } catch {
+            homeRoster = []
         }
     }
 

@@ -37,7 +37,13 @@ final class AppErrorCoordinator {
 /// Translates an arbitrary thrown error into a short, user-friendly sentence
 /// suitable for a toast. Covers the app's `APIError` cases and the common
 /// `URLError` connectivity failures; falls back to `localizedDescription`.
-func friendlyMessage(for error: Error) -> String {
+///
+/// Returns `nil` for cancellations (debounced search tasks, sheet-dismiss
+/// aborts, etc.) — those aren't user-facing errors and shouldn't spam toasts.
+func friendlyMessage(for error: Error) -> String? {
+    // Swift Task cancellation — never user-facing.
+    if error is CancellationError { return nil }
+
     if let api = error as? APIError {
         switch api {
         case .invalidResponse:
@@ -50,6 +56,8 @@ func friendlyMessage(for error: Error) -> String {
     }
     if let urlErr = error as? URLError {
         switch urlErr.code {
+        case .cancelled:
+            return nil
         case .notConnectedToInternet, .networkConnectionLost:
             return "You're offline. Check your connection."
         case .timedOut:

@@ -44,6 +44,14 @@ final class APIService: Sendable {
         return response.teams
     }
 
+    // MARK: - Roster
+
+    func fetchRoster(league: String, teamId: String) async throws -> [RosterPlayer] {
+        let data = try await get("/api/roster/\(league)/\(teamId)")
+        let response = try decoder.decode(RosterResponse.self, from: data)
+        return response.players
+    }
+
     // MARK: - Scores
 
     func fetchScores(league: String? = nil) async throws -> Data {
@@ -305,6 +313,17 @@ struct Team: Codable, Identifiable, Sendable {
 
 struct TeamsResponse: Decodable, Sendable {
     let teams: [Team]
+}
+
+struct RosterPlayer: Codable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let headshotUrl: String?
+    let position: String?
+}
+
+struct RosterResponse: Decodable, Sendable {
+    let players: [RosterPlayer]
 }
 
 struct TrendingPlayer: Codable, Identifiable, Sendable {
