@@ -56,10 +56,25 @@ vi.mock("@/lib/rate-limit", () => ({
   rateLimit: async () => ({ allowed: true, remaining: 10, resetAt: Date.now() + 60_000 }),
 }));
 
+// ----- jose mock -----------------------------------------------------------
+//
+// The /api/auth/apple route calls jose.jwtVerify against Apple's JWKS. In
+// tests we replace the verifier with a controllable stub so we can simulate
+// valid / invalid / expired token paths without hitting the network.
+const { jwtVerifyMock } = vi.hoisted(() => ({
+  jwtVerifyMock: vi.fn(),
+}));
+
+vi.mock("jose", () => ({
+  createRemoteJWKSet: () => "mock-jwks",
+  jwtVerify: (...args: unknown[]) => jwtVerifyMock(...args),
+}));
+
 // Route handlers must be imported AFTER mocks are declared.
 import { GET as alertsGET } from "@/app/api/alerts/route";
 import { POST as subscriptionsPOST } from "@/app/api/subscriptions/route";
 import { POST as registerPOST } from "@/app/api/register/route";
+import { POST as appleAuthPOST } from "@/app/api/auth/apple/route";
 import { NextResponse } from "next/server";
 
 function jsonPost(url: string, body: unknown): NextRequest {
@@ -74,6 +89,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   dbResultQueue.length = 0;
   enforceRateLimitMock.mockImplementation(async () => null);
+  jwtVerifyMock.mockReset();
 });
 
 // ----- GET /api/alerts -----------------------------------------------------
@@ -258,5 +274,123 @@ describe("POST /api/register", () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body).toEqual({ id: "new-uuid", created: true });
+  });
+});
+
+// ----- POST /api/auth/apple -----------------------------------------------
+
+describe("POST /api/auth/apple", () => {
+  const validBody = {
+    identityToken: "fake.jwt.token",
+    appleUserId: "001234.abcdef.1234",
+    email: "user@privaterelay.appleid.com",
+    fullName: { givenName: "Taylor", familyName: "Swift" },
+  };
+
+  it("returns 400 on malformed body", async () => {
+    const req = jsonPost("http://localhost/api/auth/apple", {
+      identityToken: "",
+    });
+    const res = await appleAuthPOST(req);
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 401 when jose rejects the token", async () => {
+    jwtVerifyMock.mockRejectedValueOnce(new Error("bad signature"));
+    const req = jsonPost("http://localhost/api/auth/apple", validBody);
+    const res = await appleAuthPOST(req);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 when JWT sub doesn't match appleUserId", async () => {
+    jwtVerifyMock.mockResolvedValueOnce({
+      payload: { sub: "someone-else", email: validBody.email },
+    });
+    const req = jsonPost("http://localhost/api/auth/apple", validBody);
+    const res = await appleAuthPOST(req);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns existing { userId, email } when user already exists", async () => {
+    jwtVerifyMock.mockResolvedValueOnce({
+      payload: { sub: validBody.appleUserId, email: validBody.email },
+    });
+    // 1) select existing
+    dbResultQueue.push([
+      {
+        id: "existing-uuid",
+        appleUserId: validBody.appleUserId,
+        email: validBody.email,
+      },
+    ]);
+
+    const req = jsonPost("http://localhost/api/auth/apple", validBody);
+    const res = await appleAuthPOST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({
+      userId: "existing-uuid",
+      email: validBody.email,
+    });
+  });
+
+  it("creates new user on first sign-in", async () => {
+    jwtVerifyMock.mockResolvedValueOnce({
+      payload: { sub: validBody.appleUserId, email: validBody.email },
+    });
+    // 1) select → empty
+    dbResultQueue.push([]);
+    // 2) insert().values().returning() → new row
+    dbResultQueue.push([
+      {
+        id: "new-uuid",
+        appleUserId: validBody.appleUserId,
+        email: validBody.email,
+        plan: "free",
+      },
+    ]);
+
+    const req = jsonPost("http://localhost/api/auth/apple", validBody);
+    const res = await appleAuthPOST(req);
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.userId).toBe("new-uuid");
+    expect(body.email).toBe(validBody.email);
+  });
+
+  it("creates new user on subsequent sign-in when email is absent (uses privaterelay placeholder)", async () => {
+    // Second sign-in: no email in JWT, none from client. Route must still
+    // work because appleUserId is the real primary key.
+    jwtVerifyMock.mockResolvedValueOnce({
+      payload: { sub: validBody.appleUserId },
+    });
+    dbResultQueue.push([]);
+    dbResultQueue.push([
+      {
+        id: "new-uuid-2",
+        appleUserId: validBody.appleUserId,
+        email: `${validBody.appleUserId}@privaterelay.appleid`,
+        plan: "free",
+      },
+    ]);
+
+    const req = jsonPost("http://localhost/api/auth/apple", {
+      identityToken: validBody.identityToken,
+      appleUserId: validBody.appleUserId,
+    });
+    const res = await appleAuthPOST(req);
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.userId).toBe("new-uuid-2");
+    expect(body.email).toContain("privaterelay");
+  });
+
+  it("returns 429 when rate limit is exceeded", async () => {
+    enforceRateLimitMock.mockImplementationOnce(async () =>
+      NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 })
+    );
+    const req = jsonPost("http://localhost/api/auth/apple", validBody);
+    const res = await appleAuthPOST(req);
+    expect(res.status).toBe(429);
   });
 });

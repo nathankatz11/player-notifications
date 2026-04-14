@@ -17,6 +17,7 @@ import {
   matchAndAlertMLB,
   matchAndAlertNHL,
   dispatchTeamResult,
+  dispatchFirehose,
 } from "@/lib/alerts";
 import { log } from "@/lib/logger";
 
@@ -203,6 +204,11 @@ async function processGame(league: League, event: ESPNEvent): Promise<number> {
       dispatched += await matchAndAlert(play, gameId, league, event);
     }
     latestPlayId = plays[plays.length - 1].id;
+
+    // Firehose: fan every new play out to any user with
+    // `firehose_until > now`. Runs after normal matching so real subs still
+    // take priority in logs and the firehose recipient always gets a push.
+    await dispatchFirehose(newPlays, gameId, league, event);
   }
 
   // Fire team_win / team_loss on transition to final. Dedupe lives inside

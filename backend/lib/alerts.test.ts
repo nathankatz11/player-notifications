@@ -28,12 +28,15 @@ import {
   parsePlay,
   parseMLBPlay,
   matchesMLBEntry,
+  parseNHLPlay,
+  matchesNHLEntry,
   type ParsedPlay,
   type SubscriptionLike,
   type AlertLike,
 } from "./alerts";
 import type { ESPNEvent, ESPNPlay } from "./espn";
 import { parsePlayByPlayResponse, type MLBPlay } from "./mlb";
+import { parseNHLPlayByPlayResponse, type NHLPlay } from "./nhl";
 
 // ---------- Fixtures -------------------------------------------------------
 
@@ -722,5 +725,330 @@ describe("parsePlay + matchesSubscription together", () => {
     // Parsed NBA three fires both three_pointer AND points_scored.
     expect(matched.map((m) => m.trigger)).toContain("three_pointer");
     expect(matched.every((m) => m.active && m.entityId === "p-30")).toBe(true);
+  });
+});
+
+// ---------- parseNHLPlay + matchesNHLEntry (role-aware NHL triggers) -------
+
+describe("parseNHLPlay", () => {
+  function makeNHLGoal(overrides: Partial<NHLPlay> = {}): NHLPlay {
+    return {
+      playId: "42",
+      gameId: "2024020123",
+      eventType: "goal",
+      scorerId: "scorer-1",
+      assist1Id: "a1-1",
+      assist2Id: "a2-1",
+      goalieInNetId: "goalie-1",
+      shooterId: null,
+      hitterId: null,
+      hitteeId: null,
+      description: "Goal scored by Scorer Smith.",
+      period: 2,
+      ...overrides,
+    };
+  }
+
+  it("a goal with both assists splits into 4 entries: scorer, assist1, assist2, goalie", () => {
+    const entries = parseNHLPlay(makeNHLGoal());
+    expect(entries).toHaveLength(4);
+
+    const scorer = entries.find((e) => e.role === "scorer");
+    expect(scorer).toBeDefined();
+    expect(scorer!.entityId).toBe("scorer-1");
+    expect(scorer!.triggers).toEqual(
+      expect.arrayContaining(["goal_scored", "goal"])
+    );
+
+    const assisters = entries.filter((e) => e.role === "assister");
+    expect(assisters.map((a) => a.entityId).sort()).toEqual(["a1-1", "a2-1"]);
+    for (const a of assisters) {
+      expect(a.triggers).toEqual(["assist"]);
+    }
+
+    const goalie = entries.find((e) => e.role === "goalie");
+    expect(goalie).toBeDefined();
+    expect(goalie!.entityId).toBe("goalie-1");
+    expect(goalie!.triggers).toEqual(["goal_allowed"]);
+    // Pure role isolation — the goalie entry doesn't carry scorer triggers.
+    expect(goalie!.triggers).not.toContain("goal_scored");
+    expect(goalie!.triggers).not.toContain("goal");
+  });
+
+  it("a goal with only one assist produces 3 entries (scorer, assist1, goalie)", () => {
+    const entries = parseNHLPlay(makeNHLGoal({ assist2Id: null }));
+    expect(entries).toHaveLength(3);
+    expect(entries.filter((e) => e.role === "assister")).toHaveLength(1);
+  });
+
+  it("an unassisted goal with no goalie-in-net produces just a scorer entry", () => {
+    const entries = parseNHLPlay(
+      makeNHLGoal({ assist1Id: null, assist2Id: null, goalieInNetId: null })
+    );
+    expect(entries).toHaveLength(1);
+    expect(entries[0].role).toBe("scorer");
+  });
+
+  it("a shot-on-goal (hyphenated typeDescKey) produces a single shooter entry", () => {
+    const play: NHLPlay = {
+      playId: "11",
+      gameId: "g-1",
+      eventType: "shot-on-goal",
+      scorerId: null,
+      assist1Id: null,
+      assist2Id: null,
+      goalieInNetId: null,
+      shooterId: "shooter-7",
+      hitterId: null,
+      hitteeId: null,
+      description: "Shot by Player.",
+      period: 1,
+    };
+    const entries = parseNHLPlay(play);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].role).toBe("shooter");
+    expect(entries[0].triggers).toEqual(["shot_on_goal"]);
+  });
+
+  it("a hit produces a single hitter entry (hittee side deferred)", () => {
+    const play: NHLPlay = {
+      playId: "22",
+      gameId: "g-1",
+      eventType: "hit",
+      scorerId: null,
+      assist1Id: null,
+      assist2Id: null,
+      goalieInNetId: null,
+      shooterId: null,
+      hitterId: "hitter-3",
+      hitteeId: "hittee-4",
+      description: "Hit.",
+      period: 1,
+    };
+    const entries = parseNHLPlay(play);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].role).toBe("hitter");
+    expect(entries[0].entityId).toBe("hitter-3");
+  });
+
+  it("returns [] for an unrecognized typeDescKey", () => {
+    const entries = parseNHLPlay(
+      makeNHLGoal({ eventType: "stoppage", scorerId: null, assist1Id: null, assist2Id: null, goalieInNetId: null })
+    );
+    expect(entries).toEqual([]);
+  });
+});
+
+describe("matchesNHLEntry (role-aware matching)", () => {
+  function makeGoal(): NHLPlay {
+    return {
+      playId: "42",
+      gameId: "2024020123",
+      eventType: "goal",
+      scorerId: "scorer-1",
+      assist1Id: "a1-1",
+      assist2Id: "a2-1",
+      goalieInNetId: "goalie-1",
+      shooterId: null,
+      hitterId: null,
+      hitteeId: null,
+      description: "Scorer Smith scores.",
+      period: 2,
+    };
+  }
+
+  it("goalie sub with goal_allowed fires when goalieInNetId matches", () => {
+    const entries = parseNHLPlay(makeGoal());
+    const goalie = entries.find((e) => e.role === "goalie")!;
+    expect(
+      matchesNHLEntry(goalie, {
+        externalPlayerId: "goalie-1",
+        trigger: "goal_allowed",
+        active: true,
+        league: "nhl",
+      })
+    ).toBe(true);
+  });
+
+  it("goalie sub with goal_allowed does NOT fire for a different goalie", () => {
+    const entries = parseNHLPlay(makeGoal());
+    const goalie = entries.find((e) => e.role === "goalie")!;
+    expect(
+      matchesNHLEntry(goalie, {
+        externalPlayerId: "goalie-999",
+        trigger: "goal_allowed",
+        active: true,
+        league: "nhl",
+      })
+    ).toBe(false);
+  });
+
+  it("scorer sub with goal_scored fires for the scorer entry", () => {
+    const entries = parseNHLPlay(makeGoal());
+    const scorer = entries.find((e) => e.role === "scorer")!;
+    expect(
+      matchesNHLEntry(scorer, {
+        externalPlayerId: "scorer-1",
+        trigger: "goal_scored",
+        active: true,
+        league: "nhl",
+      })
+    ).toBe(true);
+  });
+
+  it("scorer sub with goal_scored does NOT fire on the goalie entry (role gate)", () => {
+    const entries = parseNHLPlay(makeGoal());
+    const goalie = entries.find((e) => e.role === "goalie")!;
+    expect(
+      matchesNHLEntry(goalie, {
+        externalPlayerId: "goalie-1",
+        trigger: "goal_scored",
+        active: true,
+        league: "nhl",
+      })
+    ).toBe(false);
+  });
+
+  it("legacy 'goal' trigger still fires for the scorer (backward compat)", () => {
+    const entries = parseNHLPlay(makeGoal());
+    const scorer = entries.find((e) => e.role === "scorer")!;
+    expect(
+      matchesNHLEntry(scorer, {
+        externalPlayerId: "scorer-1",
+        trigger: "goal",
+        active: true,
+        league: "nhl",
+      })
+    ).toBe(true);
+  });
+
+  it("legacy 'goal' trigger does NOT fire for a goalie entry even if the id matches", () => {
+    const entries = parseNHLPlay(makeGoal());
+    const goalie = entries.find((e) => e.role === "goalie")!;
+    expect(
+      matchesNHLEntry(goalie, {
+        externalPlayerId: "goalie-1",
+        trigger: "goal",
+        active: true,
+        league: "nhl",
+      })
+    ).toBe(false);
+  });
+
+  it("assist sub fires for assist1 entity", () => {
+    const entries = parseNHLPlay(makeGoal());
+    const a1 = entries.find((e) => e.role === "assister" && e.entityId === "a1-1")!;
+    expect(
+      matchesNHLEntry(a1, {
+        externalPlayerId: "a1-1",
+        trigger: "assist",
+        active: true,
+        league: "nhl",
+      })
+    ).toBe(true);
+  });
+
+  it("assist sub fires for assist2 entity as well", () => {
+    const entries = parseNHLPlay(makeGoal());
+    const a2 = entries.find((e) => e.role === "assister" && e.entityId === "a2-1")!;
+    expect(
+      matchesNHLEntry(a2, {
+        externalPlayerId: "a2-1",
+        trigger: "assist",
+        active: true,
+        league: "nhl",
+      })
+    ).toBe(true);
+  });
+
+  it("does NOT fire when league is not 'nhl'", () => {
+    const entries = parseNHLPlay(makeGoal());
+    const scorer = entries.find((e) => e.role === "scorer")!;
+    expect(
+      matchesNHLEntry(scorer, {
+        externalPlayerId: "scorer-1",
+        trigger: "goal_scored",
+        active: true,
+        league: "nba",
+      })
+    ).toBe(false);
+  });
+
+  it("does NOT fire when externalPlayerId is null (NHL mapping unresolved)", () => {
+    const entries = parseNHLPlay(makeGoal());
+    const scorer = entries.find((e) => e.role === "scorer")!;
+    expect(
+      matchesNHLEntry(scorer, {
+        externalPlayerId: null,
+        trigger: "goal_scored",
+        active: true,
+        league: "nhl",
+      })
+    ).toBe(false);
+  });
+
+  it("does NOT fire for inactive subscriptions", () => {
+    const entries = parseNHLPlay(makeGoal());
+    const scorer = entries.find((e) => e.role === "scorer")!;
+    expect(
+      matchesNHLEntry(scorer, {
+        externalPlayerId: "scorer-1",
+        trigger: "goal_scored",
+        active: false,
+        league: "nhl",
+      })
+    ).toBe(false);
+  });
+});
+
+// ---------- parseNHLPlayByPlayResponse (NHL api-web shape) -----------------
+
+describe("parseNHLPlayByPlayResponse", () => {
+  it("converts a realistic NHL play-by-play payload into NHLPlay[] with role ids", () => {
+    const raw = {
+      plays: [
+        {
+          eventId: 101,
+          typeDescKey: "goal",
+          periodDescriptor: { number: 2 },
+          details: {
+            scoringPlayerId: 8478402,
+            assist1PlayerId: 8477934,
+            assist2PlayerId: 8471675,
+            goalieInNetId: 8476945,
+            descKey: "wrist-shot",
+          },
+        },
+        {
+          eventId: 102,
+          typeDescKey: "shot-on-goal",
+          periodDescriptor: { number: 2 },
+          details: {
+            shootingPlayerId: 8478402,
+          },
+        },
+      ],
+    };
+    const plays = parseNHLPlayByPlayResponse(raw, "2024020999");
+    expect(plays).toHaveLength(2);
+
+    const g = plays[0];
+    expect(g.playId).toBe("101");
+    expect(g.eventType).toBe("goal");
+    expect(g.scorerId).toBe("8478402");
+    expect(g.assist1Id).toBe("8477934");
+    expect(g.assist2Id).toBe("8471675");
+    expect(g.goalieInNetId).toBe("8476945");
+    expect(g.period).toBe(2);
+    expect(g.gameId).toBe("2024020999");
+
+    const s = plays[1];
+    expect(s.eventType).toBe("shot-on-goal");
+    expect(s.shooterId).toBe("8478402");
+  });
+
+  it("gracefully returns [] for an empty plays array", () => {
+    expect(parseNHLPlayByPlayResponse({ plays: [] }, "g-1")).toEqual([]);
+    expect(parseNHLPlayByPlayResponse({}, "g-1")).toEqual([]);
   });
 });

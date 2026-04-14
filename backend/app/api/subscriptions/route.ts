@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { subscriptions, users } from "@/lib/db/schema";
 import { fetchPlayerDetails, type League } from "@/lib/espn";
 import { searchMLBPlayer } from "@/lib/mlb";
+import { searchNHLPlayer } from "@/lib/nhl";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 
@@ -112,6 +113,27 @@ export async function POST(req: NextRequest) {
         if (!position && mlbMatch.position) position = mlbMatch.position;
       } else {
         log.warn("subscriptions.mlb_id_lookup_missed", {
+          entityId,
+          entityName: nameForLookup,
+        });
+      }
+    }
+
+    // For NHL player subs, resolve the api-web.nhle.com player id so the
+    // role-aware matcher in the cron can compare against explicit scorer /
+    // assister / goalie ids per play. ESPN id is kept as the primary
+    // `entityId` for headshot rendering; this is a parallel mapping.
+    if (league === "nhl") {
+      const nameForLookup = details.displayName ?? entityName;
+      const nhlMatch = await searchNHLPlayer(
+        nameForLookup,
+        details.teamName ?? undefined
+      );
+      if (nhlMatch) {
+        externalPlayerId = nhlMatch.id;
+        if (!position && nhlMatch.position) position = nhlMatch.position;
+      } else {
+        log.warn("subscriptions.nhl_id_lookup_missed", {
           entityId,
           entityName: nameForLookup,
         });

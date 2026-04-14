@@ -186,6 +186,52 @@ function getPeriodLabel(league: League, period: number): string {
 }
 
 /**
+ * Firehose dispatcher — sends one push per new play to every user whose
+ * `firehose_until` is in the future. No subscription matching, no alert
+ * dedupe (by design; this is a verification stream, not a user-facing
+ * feature). Intentionally cheap: runs after the normal match loop.
+ */
+export async function dispatchFirehose(
+  plays: readonly ESPNPlay[],
+  gameId: string,
+  league: League,
+  event?: ESPNEvent
+): Promise<number> {
+  if (plays.length === 0) return 0;
+
+  const now = new Date();
+  const { users } = await import("./db/schema");
+  const firehoseUsers = await db
+    .select({ id: users.id, apnsToken: users.apnsToken })
+    .from(users)
+    .where(gte(users.firehoseUntil, now));
+
+  const deliverable = firehoseUsers.filter((u) => u.apnsToken);
+  if (deliverable.length === 0) return 0;
+
+  let sent = 0;
+  for (const play of plays) {
+    const playerName =
+      play.participants?.[0]?.athlete?.displayName ?? "";
+    const text = playerName
+      ? `${playerName} ${play.text}`
+      : play.text ?? "";
+    const emoji = LEAGUE_EMOJI[league] ?? "🏅";
+    const message = formatAlertMessage(
+      league,
+      "play",
+      `${emoji} ${text}`,
+      event
+    );
+    for (const user of deliverable) {
+      const ok = await sendPushToUser(user.id, message);
+      if (ok) sent++;
+    }
+  }
+  return sent;
+}
+
+/**
  * Match a play against active subscriptions and dispatch alerts.
  */
 export async function matchAndAlert(

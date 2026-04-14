@@ -31,6 +31,11 @@ export const users = pgTable("users", {
   // created through `/api/auth/apple` always populate this.
   appleUserId: text("apple_user_id").unique(),
   plan: planEnum("plan").notNull().default("free"),
+  // When set to a future timestamp, the cron delivers a push for every new
+  // play in every live game — regardless of subscription match. Used for
+  // end-to-end dispatch verification. Self-expires via a time check in
+  // dispatch; no sweeper needed.
+  firehoseUntil: timestamp("firehose_until", { withTimezone: true }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
