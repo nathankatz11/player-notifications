@@ -14,6 +14,14 @@ import type { ESPNPlay, ESPNEvent, League } from "./espn";
 type Trigger = string;
 
 export interface ParsedPlay {
+  /**
+   * Every id this play is "about" — typically [playerId, teamId] — so a
+   * single play fires both player-specific and team-level subscriptions
+   * that reference either. `entityIds[0]` is the canonical one (player if
+   * present, else team) used for logging.
+   */
+  entityIds: string[];
+  /** Deprecated alias; first of `entityIds`. Kept for readability in a few call sites. */
   entityId: string;
   /**
    * Triggers that should fire for this play. A single play can match several
@@ -153,16 +161,17 @@ export async function matchAndAlert(
   const parsed = parsePlay(play, league, event);
   if (!parsed) return 0;
 
-  const { entityId, triggers, description } = parsed;
+  const { entityIds, triggers, description } = parsed;
 
-  // Find matching subscriptions — a play can carry multiple triggers, so
-  // match any subscription whose trigger is in the set.
+  // Find matching subscriptions — a play can carry multiple triggers AND
+  // multiple candidate ids (player + team), so a single MLB at-bat fires
+  // both "Pete Alonso home_run" (player sub) and "Mets home_run" (team sub).
   const matchingSubs = await db
     .select()
     .from(subscriptions)
     .where(
       and(
-        eq(subscriptions.entityId, entityId),
+        inArray(subscriptions.entityId, entityIds),
         inArray(subscriptions.trigger, triggers),
         eq(subscriptions.active, true)
       )
@@ -411,7 +420,7 @@ export function matchesSubscription(
   sub: SubscriptionLike
 ): boolean {
   if (!sub.active) return false;
-  if (sub.entityId !== parsed.entityId) return false;
+  if (!parsed.entityIds.includes(sub.entityId)) return false;
   if (!parsed.triggers.includes(sub.trigger)) return false;
   return true;
 }
@@ -508,6 +517,31 @@ export function parsePlay(play: ESPNPlay, league: League, event?: ESPNEvent): Pa
     }
   }
 
+  // MLB: ESPN reports plays with type="Play Result" and the actual outcome
+  // only in `play.text` (e.g. "Muncy struck out swinging.",
+  // "Pages homered to left..."). Detect outcomes from the text so the
+  // per-play-type TRIGGER_MAP doesn't miss everything.
+  if (league === "mlb") {
+    if (!triggers.includes("home_run") && /\b(homered|home run|grand slam)\b/.test(text)) {
+      triggers.push("home_run");
+    }
+    if (!triggers.includes("strikeout") && /\bstruck out\b/.test(text)) {
+      triggers.push("strikeout");
+    }
+    if (!triggers.includes("walk") && /\bwalked\b/.test(text)) {
+      triggers.push("walk");
+    }
+    if (!triggers.includes("single") && /\bsingled\b/.test(text)) {
+      triggers.push("single");
+    }
+    if (!triggers.includes("double") && /\bdoubled\b/.test(text)) {
+      triggers.push("double");
+    }
+    if (!triggers.includes("stolen_base") && /\bstole\s+(second|third|home)\b/.test(text)) {
+      triggers.push("stolen_base");
+    }
+  }
+
   if (triggers.length === 0) return null;
 
   // Build a short play blurb: prefer player name + raw text, fall back to raw text
@@ -515,8 +549,11 @@ export function parsePlay(play: ESPNPlay, league: League, event?: ESPNEvent): Pa
     ? `${playerName} ${play.text}`
     : play.text;
 
+  const entityIds = [playerId, teamId].filter((x): x is string => !!x);
+
   return {
-    entityId: playerId || teamId,
+    entityIds,
+    entityId: entityIds[0],
     triggers,
     description: formatAlertMessage(league, triggers[0], playText, event),
   };

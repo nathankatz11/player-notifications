@@ -43,10 +43,14 @@ function makeSub(overrides: Partial<SubscriptionLike> = {}): SubscriptionLike {
   };
 }
 
-function makeParsed(overrides: Partial<ParsedPlay> & { trigger?: string } = {}): ParsedPlay {
+function makeParsed(
+  overrides: Partial<ParsedPlay> & { trigger?: string } = {}
+): ParsedPlay {
   const { trigger, ...rest } = overrides;
+  const entityId = rest.entityId ?? "player-123";
   return {
-    entityId: "player-123",
+    entityId,
+    entityIds: rest.entityIds ?? [entityId],
     triggers: trigger ? [trigger] : ["three_pointer"],
     description: "🏀 THREE — Steph Curry drains it.",
     ...rest,
