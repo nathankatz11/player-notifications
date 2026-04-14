@@ -7,7 +7,9 @@ import {
   uuid,
   integer,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // Enums
 export const planEnum = pgEnum("plan", ["free", "premium"]);
@@ -61,6 +63,10 @@ export const alerts = pgTable(
     deliveryMethod: text("delivery_method").notNull(),
     gameId: text("game_id").notNull(),
     eventDescription: text("event_description").notNull(),
+    // ESPN's stable play identifier. Null for events that aren't per-play
+    // (e.g. team_win on game-end). The unique partial index below enforces
+    // at-most-one alert per (subscription, game, play) when set.
+    playId: text("play_id"),
   },
   (t) => [
     index("alerts_dedupe_idx").on(
@@ -69,6 +75,9 @@ export const alerts = pgTable(
       t.eventDescription,
       t.sentAt
     ),
+    uniqueIndex("alerts_play_unique_idx")
+      .on(t.subscriptionId, t.gameId, t.playId)
+      .where(sql`${t.playId} IS NOT NULL`),
   ]
 );
 

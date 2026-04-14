@@ -37,14 +37,15 @@ export interface SubscriptionLike {
 }
 
 /**
- * Minimal shape of an alert row for dedupe. The dedupe key is
- * (subscriptionId, gameId, eventDescription) — the same play text from the
- * same game should not fire the same subscription twice.
+ * Minimal shape of an alert row for dedupe. Dedupe key is
+ * (subscriptionId, gameId, playId) — ESPN's play id is stable per play, so
+ * this is tolerant to ESPN rewriting a play's text between polls and also
+ * distinguishes two plays in the same game with identical text.
  */
 export interface AlertLike {
   subscriptionId: string;
   gameId: string;
-  eventDescription: string;
+  playId: string;
 }
 
 /** Sport emoji per league */
@@ -169,25 +170,25 @@ export async function matchAndAlert(
 
   if (matchingSubs.length === 0) return 0;
 
-  // Batched dedupe: fetch all existing (subscriptionId, gameId, eventDescription)
-  // rows from the last 24h in ONE query instead of one per matching sub.
-  // Guards against cron retries that re-deliver the same plays when the
-  // games.lastPlayId checkpoint didn't advance.
+  // Batched dedupe by ESPN play id: fetch all existing (subscriptionId,
+  // gameId, playId) rows from the last 24h in ONE query. play.id is stable
+  // per play, so ESPN text rewrites don't cause duplicates and two distinct
+  // plays with identical text don't collide.
   const matchingSubIds = matchingSubs.map((s) => s.id);
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const existing = matchingSubIds.length > 0
+  const existing = matchingSubIds.length > 0 && play.id
     ? await db
         .select({
           subscriptionId: alerts.subscriptionId,
           gameId: alerts.gameId,
-          eventDescription: alerts.eventDescription,
+          playId: alerts.playId,
         })
         .from(alerts)
         .where(
           and(
             inArray(alerts.subscriptionId, matchingSubIds),
             eq(alerts.gameId, gameId),
-            eq(alerts.eventDescription, play.text),
+            eq(alerts.playId, play.id),
             gte(alerts.sentAt, twentyFourHoursAgo)
           )
         )
@@ -199,30 +200,52 @@ export async function matchAndAlert(
     const candidate: AlertLike = {
       subscriptionId: sub.id,
       gameId,
-      eventDescription: play.text,
+      playId: play.id ?? "",
     };
-    if (isDuplicateAlert(candidate, existing)) {
+    if (play.id && isDuplicateAlert(candidate, existing.map((e) => ({
+      subscriptionId: e.subscriptionId,
+      gameId: e.gameId,
+      playId: e.playId ?? "",
+    })))) {
       log.info("alerts.dedupe_skip", {
         subscriptionId: sub.id,
         gameId,
-        eventDescription: play.text,
+        playId: play.id,
       });
       continue;
     }
 
     // Insert the alert row first so we have an `alertId` to embed in the push
-    // payload (enables iOS deep-linking from the notification tap).
-    const [alertRow] = await db
-      .insert(alerts)
-      .values({
+    // payload (enables iOS deep-linking from the notification tap). The DB
+    // has a partial unique index on (subscription_id, game_id, play_id) that
+    // hard-fails duplicate inserts as a second line of defense against the
+    // race between the SELECT above and this INSERT under concurrent cron
+    // retries.
+    let alertRow;
+    try {
+      [alertRow] = await db
+        .insert(alerts)
+        .values({
+          subscriptionId: sub.id,
+          userId: sub.userId,
+          message: description,
+          deliveryMethod: sub.deliveryMethod ?? "push",
+          gameId,
+          eventDescription: play.text,
+          playId: play.id ?? null,
+        })
+        .returning();
+    } catch (err) {
+      // Unique-constraint violation on (sub, game, play) — another invocation
+      // won the race. Skip silently; the other one already sent the push.
+      log.info("alerts.dedupe_race", {
         subscriptionId: sub.id,
-        userId: sub.userId,
-        message: description,
-        deliveryMethod: sub.deliveryMethod ?? "push",
         gameId,
-        eventDescription: play.text,
-      })
-      .returning();
+        playId: play.id,
+        error: String(err),
+      });
+      continue;
+    }
 
     // Send push notification
     if (sub.deliveryMethod === "push" || sub.deliveryMethod === "both") {
@@ -427,19 +450,20 @@ export function matchesTeamResult(
 }
 
 /**
- * Pure dedupe predicate: has an alert for this (subscription, game, event
- * description) already been recorded? Callers pass in the existing alerts
- * rows they've fetched — the predicate itself does no I/O.
+ * Pure dedupe predicate: has an alert for this (subscription, game, play)
+ * already been recorded? Callers pass in the existing alerts rows they've
+ * fetched — the predicate itself does no I/O.
  */
 export function isDuplicateAlert(
   candidate: AlertLike,
   existing: readonly AlertLike[]
 ): boolean {
+  if (!candidate.playId) return false;
   return existing.some(
     (a) =>
       a.subscriptionId === candidate.subscriptionId &&
       a.gameId === candidate.gameId &&
-      a.eventDescription === candidate.eventDescription
+      a.playId === candidate.playId
   );
 }
 
@@ -460,19 +484,21 @@ export function parsePlay(play: ESPNPlay, league: League, event?: ESPNEvent): Pa
   const primary = TRIGGER_MAP[playType];
   if (primary) triggers.push(primary);
 
-  // Basketball text-based triggers (NBA + NCAAMB).
+  // Basketball text-based triggers (NBA + NCAAMB). Word-boundary regex on
+  // `block` and `steal` so we don't false-positive on "blockbuster",
+  // "stealing time", etc.
   if (BASKETBALL_LEAGUES.includes(league)) {
     if (!triggers.includes("three_pointer") &&
-        text.includes("three point") && play.scoreValue === 3) {
+        /\bthree\s+point\b/.test(text) && play.scoreValue === 3) {
       triggers.push("three_pointer");
     }
-    if (!triggers.includes("block") && text.includes("block")) {
+    if (!triggers.includes("block") && /\bblock\b/.test(text)) {
       triggers.push("block");
     }
-    if (!triggers.includes("dunk") && playType.includes("dunk")) {
+    if (!triggers.includes("dunk") && /\bdunk\b/.test(playType)) {
       triggers.push("dunk");
     }
-    if (!triggers.includes("steal") && text.includes("steal")) {
+    if (!triggers.includes("steal") && /\bsteal\b/.test(text)) {
       triggers.push("steal");
     }
     // Any made basket (or free throw) also counts as points_scored.

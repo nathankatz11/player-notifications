@@ -207,14 +207,14 @@ describe("isDuplicateAlert", () => {
   const candidate: AlertLike = {
     subscriptionId: "sub-1",
     gameId: "game-99",
-    eventDescription: "Curry hits a three from 28ft",
+    playId: "play-42",
   };
 
   it("returns false when no alerts exist for this subscription", () => {
     expect(isDuplicateAlert(candidate, [])).toBe(false);
   });
 
-  it("returns true when an identical (sub, game, event) row already exists", () => {
+  it("returns true when an identical (sub, game, play) row already exists", () => {
     expect(isDuplicateAlert(candidate, [{ ...candidate }])).toBe(true);
   });
 
@@ -230,37 +230,18 @@ describe("isDuplicateAlert", () => {
     ).toBe(false);
   });
 
-  it("returns false when eventDescription differs (different play)", () => {
+  it("returns false when playId differs (different play)", () => {
     expect(
-      isDuplicateAlert(candidate, [
-        { ...candidate, eventDescription: "Curry hits a three from 30ft" },
-      ])
+      isDuplicateAlert(candidate, [{ ...candidate, playId: "play-43" }])
     ).toBe(false);
   });
 
-  it("three-case tuple check: exact match true, diff sub false, diff event false", () => {
-    const existing: AlertLike[] = [{ ...candidate }];
-
-    // 1. Exact match (same sub, game, event) → true
-    expect(isDuplicateAlert({ ...candidate }, existing)).toBe(true);
-
-    // 2. Different subscriptionId → false
-    expect(
-      isDuplicateAlert({ ...candidate, subscriptionId: "sub-other" }, existing)
-    ).toBe(false);
-
-    // 3. Different eventDescription → false
-    expect(
-      isDuplicateAlert(
-        { ...candidate, eventDescription: "Different play text" },
-        existing
-      )
-    ).toBe(false);
+  it("never dedupes when candidate has no playId (defensive fallback)", () => {
+    const noPlay: AlertLike = { ...candidate, playId: "" };
+    expect(isDuplicateAlert(noPlay, [noPlay])).toBe(false);
   });
 
-  it("two identical event notifications produce only one alert row (simulated)", () => {
-    // Simulate the dedupe-loop a caller would run: feed two identical events,
-    // the second should see the first already in `existing` and skip.
+  it("two events with the same playId produce only one alert row (simulated)", () => {
     const existing: AlertLike[] = [];
     const events = [candidate, { ...candidate }];
     let inserted = 0;
@@ -345,6 +326,27 @@ describe("parsePlay", () => {
     expect(parsed?.triggers).toEqual(
       expect.arrayContaining(["three_pointer", "points_scored"])
     );
+  });
+
+  it("does not false-positive 'block' on text like 'blockbuster'", () => {
+    const play = makePlay({
+      text: "blockbuster trade rumor",
+      type: { id: "1", text: "Commentary" },
+      participants: [{ athlete: { id: "p-1", displayName: "Player" } }],
+    });
+    const parsed = parsePlay(play, "nba");
+    // No scoreValue and no real play type → no triggers at all.
+    expect(parsed).toBeNull();
+  });
+
+  it("does not false-positive 'steal' on text like 'stealing time'", () => {
+    const play = makePlay({
+      text: "broadcaster stealing time from the booth",
+      type: { id: "1", text: "Commentary" },
+      participants: [{ athlete: { id: "p-1", displayName: "Player" } }],
+    });
+    const parsed = parsePlay(play, "nba");
+    expect(parsed).toBeNull();
   });
 });
 

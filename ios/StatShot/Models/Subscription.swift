@@ -105,15 +105,20 @@ enum League: String, Codable, CaseIterable, Identifiable {
         return URL(string: "https://a.espncdn.com/combiner/i?img=/i/leagues/500/\(slug).png")
     }
 
+    // Only triggers the backend can actually match are exposed here. See
+    // TRIGGER_MAP / parsePlay in backend/lib/alerts.ts. Triggers like
+    // `assist`, `hatTrick`, `shutout`, `gameWinner`, `penaltyKick`, `error`
+    // remain in the TriggerType enum so existing DB rows still render in
+    // AlertDetailView, but we stop offering them in AddAlertView.
     var triggers: [TriggerType] {
         switch self {
-        case .nba: [.pointsScored, .turnover, .technicalFoul, .ejection, .gameWinner, .threePointer, .block, .steal, .dunk, .teamWin, .teamLoss]
+        case .nba: [.pointsScored, .turnover, .technicalFoul, .ejection, .threePointer, .block, .steal, .dunk, .teamWin, .teamLoss]
         case .nfl: [.touchdown, .interception, .fumble, .sack, .fieldGoal, .reception, .rush, .teamWin, .teamLoss]
-        case .nhl: [.goal, .assist, .penalty, .hatTrick, .shutout, .shotOnGoal, .hit, .blockedShot, .takeaway, .giveaway, .teamWin, .teamLoss]
-        case .mlb: [.homeRun, .strikeout, .stolenBase, .error, .walk, .double, .single, .teamWin, .teamLoss]
+        case .nhl: [.goal, .penalty, .shotOnGoal, .hit, .blockedShot, .takeaway, .giveaway, .teamWin, .teamLoss]
+        case .mlb: [.homeRun, .strikeout, .stolenBase, .walk, .double, .single, .teamWin, .teamLoss]
         case .ncaafb: [.touchdown, .fieldGoal, .teamWin, .teamLoss]
         case .ncaamb: [.pointsScored, .teamWin, .teamLoss]
-        case .mls: [.goal, .redCard, .penaltyKick, .teamWin, .teamLoss]
+        case .mls: [.goal, .redCard, .teamWin, .teamLoss]
         }
     }
 }

@@ -63,9 +63,10 @@ export async function fetchScoreboard(league: League): Promise<{ events: ESPNEve
 const ALL_LEAGUES: League[] = ["nba", "nfl", "nhl", "mlb", "ncaafb", "ncaamb", "mls"];
 
 // Module-level cache for anyLiveGames() — shared across warm invocations.
-// Cold starts re-fetch (correct), and 2-minute TTL prevents thrashing ESPN
-// if multiple calls happen within one cron execution.
-const LIVE_CACHE_TTL_MS = 2 * 60 * 1000;
+// 30s TTL: long enough to amortize cost across bursty invocations in the
+// same warm function, short enough that a game flipping pre→in mid-window
+// doesn't make us skip polling for it for minutes.
+const LIVE_CACHE_TTL_MS = 30 * 1000;
 const START_SOON_WINDOW_MS = 10 * 60 * 1000;
 let liveCache: { value: boolean; at: number } | null = null;
 
