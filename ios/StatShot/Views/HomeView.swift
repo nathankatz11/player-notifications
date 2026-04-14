@@ -87,16 +87,35 @@ struct HomeView: View {
 
     // MARK: - Favorites Strip
 
+    /// Team IDs currently playing a live game (status == "in").
+    private var liveTeamIds: Set<String> {
+        var ids: Set<String> = []
+        for lg in filteredGames where lg.game.isLive {
+            for competitor in lg.game.competitors ?? [] {
+                if let id = competitor.teamId { ids.insert(id) }
+            }
+        }
+        return ids
+    }
+
+    private func isLive(_ sub: Subscription) -> Bool {
+        let id = sub.type == .teamEvent ? sub.entityId : (sub.teamId ?? "")
+        return !id.isEmpty && liveTeamIds.contains(id)
+    }
+
     private var favoritesStrip: some View {
-        // Active first, paused at the end (Instagram-stories style).
+        // Live first, then active non-live, then paused (Instagram-stories style).
         let sorted = viewModel.subscriptions.sorted { lhs, rhs in
+            let lhsLive = isLive(lhs)
+            let rhsLive = isLive(rhs)
+            if lhsLive != rhsLive { return lhsLive }
             if lhs.active != rhs.active { return lhs.active }
             return lhs.createdAt > rhs.createdAt
         }
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 14) {
                 ForEach(sorted) { subscription in
-                    FavoriteChip(subscription: subscription)
+                    FavoriteChip(subscription: subscription, isLive: isLive(subscription))
                         .onTapGesture {
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                             selectedSubscription = subscription
@@ -358,21 +377,45 @@ private struct LeagueGame: Identifiable {
 
 private struct FavoriteChip: View {
     let subscription: Subscription
+    let isLive: Bool
+
+    @State private var pulse = false
 
     private var leagueColor: Color { subscription.league.color }
+    private var ringColor: Color {
+        if !subscription.active { return leagueColor.opacity(0.25) }
+        if isLive { return .red }
+        return leagueColor.opacity(0.8)
+    }
 
     var body: some View {
         VStack(spacing: 6) {
             ZStack {
                 Circle()
-                    .strokeBorder(
-                        leagueColor.opacity(subscription.active ? 0.8 : 0.25),
-                        lineWidth: 2
-                    )
+                    .strokeBorder(ringColor, lineWidth: isLive ? 3 : 2)
                     .frame(width: 62, height: 62)
+                    .opacity(isLive && pulse ? 0.4 : 1.0)
+                    .animation(
+                        isLive
+                            ? .easeInOut(duration: 1.1).repeatForever(autoreverses: true)
+                            : .default,
+                        value: pulse
+                    )
                 avatar
                     .frame(width: 54, height: 54)
                     .clipShape(Circle())
+                if isLive {
+                    Text("LIVE")
+                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color.red, in: Capsule())
+                        .overlay(
+                            Capsule().strokeBorder(.black, lineWidth: 1.5)
+                        )
+                        .offset(x: 22, y: -22)
+                }
             }
             Text(shortName(subscription.entityName))
                 .font(.caption.weight(.semibold))
@@ -381,6 +424,12 @@ private struct FavoriteChip: View {
                 .frame(width: 72)
         }
         .opacity(subscription.active ? 1.0 : 0.55)
+        .onAppear {
+            if isLive { pulse = true }
+        }
+        .onChange(of: isLive) { _, nowLive in
+            pulse = nowLive
+        }
     }
 
     // "LeBron James" → "L. James", "New York Mets" → "NYM" (handled by shortName in parent data).
