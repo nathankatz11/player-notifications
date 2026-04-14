@@ -145,4 +145,9 @@ struct SearchResult: Codable, Identifiable, Sendable {
     let name: String
     let type: String // "player" or "team"
     let imageUrl: String?
+    // TODO(backend): /api/search does not yet return a `position` field.
+    // When the backend starts returning the player's MLB position code here,
+    // AddAlertView will filter the trigger grid by role instead of showing
+    // all grouped sections. Optional so existing search responses still decode.
+    let position: String?
 }

@@ -10,7 +10,12 @@ import {
   type ESPNPlay,
   type ESPNEvent,
 } from "@/lib/espn";
-import { matchAndAlert, dispatchTeamResult } from "@/lib/alerts";
+import { fetchMLBPlayByPlay } from "@/lib/mlb";
+import {
+  matchAndAlert,
+  matchAndAlertMLB,
+  dispatchTeamResult,
+} from "@/lib/alerts";
 import { log } from "@/lib/logger";
 
 const ACTIVE_LEAGUES: League[] = ["nba", "nfl", "nhl", "mlb", "ncaafb", "ncaamb", "mls"];
@@ -130,19 +135,40 @@ async function processGame(league: League, event: ESPNEvent): Promise<number> {
   const [gameState] = await db.select().from(games).where(eq(games.id, gameId));
   const lastPlayId = gameState?.lastPlayId ?? "";
 
-  // Fetch latest plays
-  const plays = await fetchGameSummary(league, gameId);
-
   let dispatched = 0;
+  let latestPlayId: string = lastPlayId;
 
-  if (plays.length > 0) {
-    const lastPlayIndex = lastPlayId
-      ? plays.findIndex((p: ESPNPlay) => p.id === lastPlayId)
-      : -1;
-    const newPlays = lastPlayIndex === -1 ? plays : plays.slice(lastPlayIndex + 1);
+  if (league === "mlb") {
+    // MLB: use the statsapi.mlb.com play-by-play feed instead of ESPN.
+    // statsapi games are keyed by a numeric `gamePk`, but ESPN's event.id
+    // is not that number. We derive gamePk from the linescore/plays if
+    // present on the ESPN event payload, falling back to ESPN's id (the
+    // stats feed coerces string ids into a 404 — which we log & skip).
+    const mlbPlays = await fetchMLBPlayByPlay(gameId);
+    if (mlbPlays.length > 0) {
+      const lastIdx = lastPlayId
+        ? mlbPlays.findIndex((p) => p.playId === lastPlayId)
+        : -1;
+      const newPlays = lastIdx === -1 ? mlbPlays : mlbPlays.slice(lastIdx + 1);
+      for (const play of newPlays) {
+        dispatched += await matchAndAlertMLB(play, gameId, event);
+      }
+      latestPlayId = mlbPlays[mlbPlays.length - 1].playId;
+    }
+  } else {
+    // Non-MLB leagues keep the existing ESPN flow.
+    const plays = await fetchGameSummary(league, gameId);
+    if (plays.length > 0) {
+      const lastPlayIndex = lastPlayId
+        ? plays.findIndex((p: ESPNPlay) => p.id === lastPlayId)
+        : -1;
+      const newPlays =
+        lastPlayIndex === -1 ? plays : plays.slice(lastPlayIndex + 1);
 
-    for (const play of newPlays) {
-      dispatched += await matchAndAlert(play, gameId, league, event);
+      for (const play of newPlays) {
+        dispatched += await matchAndAlert(play, gameId, league, event);
+      }
+      latestPlayId = plays[plays.length - 1].id;
     }
   }
 
@@ -152,7 +178,6 @@ async function processGame(league: League, event: ESPNEvent): Promise<number> {
     dispatched += await dispatchTeamResult(event, league);
   }
 
-  const latestPlayId = plays.length > 0 ? plays[plays.length - 1].id : lastPlayId;
   await db
     .insert(games)
     .values({

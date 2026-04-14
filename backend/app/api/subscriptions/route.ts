@@ -4,7 +4,9 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { subscriptions, users } from "@/lib/db/schema";
 import { fetchPlayerDetails, type League } from "@/lib/espn";
+import { searchMLBPlayer } from "@/lib/mlb";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { log } from "@/lib/logger";
 
 const FREE_TIER_LIMIT = 1000;
 
@@ -82,13 +84,39 @@ export async function POST(req: NextRequest) {
 
   // For player subs, resolve the player's current team + headshot URL via
   // ESPN so the client can filter "my games today" and render a reliable
-  // avatar. Best-effort — nulls are fine.
+  // avatar. Best-effort — nulls are fine. For MLB player subs we *also*
+  // resolve the MLB Stats API numeric player id (different from ESPN's
+  // id space) so role-aware triggers in the cron can match batter/pitcher
+  // ids against this subscription. Position is stored so the client can
+  // show P/SP/RP badges and so the match layer can warn on role mismatch.
   let teamId: string | null = null;
   let photoUrl: string | null = null;
+  let position: string | null = null;
+  let externalPlayerId: string | null = null;
   if (type === "player_stat") {
     const details = await fetchPlayerDetails(league as League, entityId);
     teamId = details.teamId;
     photoUrl = details.headshotUrl;
+    position = details.position;
+
+    if (league === "mlb") {
+      const nameForLookup = details.displayName ?? entityName;
+      const mlbMatch = await searchMLBPlayer(
+        nameForLookup,
+        details.teamName ?? undefined
+      );
+      if (mlbMatch) {
+        externalPlayerId = mlbMatch.id;
+        // statsapi.mlb.com often has a more authoritative position code
+        // than ESPN (especially SP vs RP for pitchers).
+        if (!position && mlbMatch.position) position = mlbMatch.position;
+      } else {
+        log.warn("subscriptions.mlb_id_lookup_missed", {
+          entityId,
+          entityName: nameForLookup,
+        });
+      }
+    }
   } else {
     teamId = entityId;
   }
@@ -103,6 +131,8 @@ export async function POST(req: NextRequest) {
       entityName,
       teamId,
       photoUrl,
+      position,
+      externalPlayerId,
       trigger,
       deliveryMethod: deliveryMethod ?? "push",
     })

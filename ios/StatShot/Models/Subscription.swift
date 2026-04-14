@@ -115,7 +115,7 @@ enum League: String, Codable, CaseIterable, Identifiable {
         case .nba: [.pointsScored, .turnover, .technicalFoul, .ejection, .threePointer, .block, .steal, .dunk, .teamWin, .teamLoss]
         case .nfl: [.touchdown, .interception, .fumble, .sack, .fieldGoal, .reception, .rush, .teamWin, .teamLoss]
         case .nhl: [.goal, .penalty, .shotOnGoal, .hit, .blockedShot, .takeaway, .giveaway, .teamWin, .teamLoss]
-        case .mlb: [.homeRun, .strikeout, .stolenBase, .walk, .double, .single, .teamWin, .teamLoss]
+        case .mlb: [.homeRunAllowed, .homeRunHit, .strikeoutPitched, .strikeoutBatting, .stolenBase, .error, .walk, .double, .single, .teamWin, .teamLoss]
         case .ncaafb: [.touchdown, .fieldGoal, .teamWin, .teamLoss]
         case .ncaamb: [.pointsScored, .teamWin, .teamLoss]
         case .mls: [.goal, .redCard, .teamWin, .teamLoss]
@@ -161,6 +161,10 @@ enum TriggerType: String, Codable, CaseIterable, Identifiable {
     case walk
     case double
     case single
+    case homeRunAllowed = "home_run_allowed"
+    case homeRunHit = "home_run_hit"
+    case strikeoutPitched = "strikeout_pitched"
+    case strikeoutBatting = "strikeout_batting"
 
     var id: String { rawValue }
 
@@ -203,6 +207,10 @@ enum TriggerType: String, Codable, CaseIterable, Identifiable {
         case .walk: "Walk"
         case .double: "Double"
         case .single: "Single"
+        case .homeRunAllowed: "HR Allowed"
+        case .homeRunHit: "Home Runs"
+        case .strikeoutPitched: "Ks Thrown"
+        case .strikeoutBatting: "Ks at Bat"
         }
     }
 
@@ -245,6 +253,10 @@ enum TriggerType: String, Codable, CaseIterable, Identifiable {
         case .walk: "BB"
         case .double: "2B"
         case .single: "1B"
+        case .homeRunAllowed: "HRA"
+        case .homeRunHit: "HRs"
+        case .strikeoutPitched: "Ks"
+        case .strikeoutBatting: "KBats"
         }
     }
 
@@ -287,6 +299,24 @@ enum TriggerType: String, Codable, CaseIterable, Identifiable {
         case .walk: "Draws a base on balls"
         case .double: "Lines one into the gap"
         case .single: "Knocks a base hit"
+        case .homeRunAllowed: "When they give up a home run"
+        case .homeRunHit: "When they hit one out"
+        case .strikeoutPitched: "When they strike someone out"
+        case .strikeoutBatting: "When they strike out"
+        }
+    }
+
+    /// MLB role classification used to filter/group triggers for pitchers vs batters.
+    /// `.none` means league-agnostic (team triggers, or not MLB-specific).
+    enum MLBRole { case pitching, batting, team, none }
+
+    var mlbRole: MLBRole {
+        switch self {
+        case .homeRunAllowed, .strikeoutPitched: .pitching
+        case .homeRunHit, .strikeoutBatting, .stolenBase, .walk, .double, .single: .batting
+        case .error: .batting // fielding error — treat as non-pitcher here; backend matches by role anyway.
+        case .teamWin, .teamLoss: .team
+        default: .none
         }
     }
 }
@@ -343,4 +373,9 @@ struct Subscription: Codable, Identifiable, Hashable {
     let deliveryMethod: DeliveryMethod
     var active: Bool
     let createdAt: Date
+    /// MLB-only position code (e.g. "P", "SP", "RP", "C", "1B", "OF") populated
+    /// by the backend when the subscription is created for an MLB player. Used
+    /// by the backend to match role-aware triggers. Nullable for non-MLB subs
+    /// or when position lookup fails. Purely informational on the client.
+    let position: String?
 }

@@ -165,18 +165,28 @@ export async function fetchTeams(league: League): Promise<ESPNTeam[]> {
 export interface PlayerDetails {
   teamId: string | null;
   headshotUrl: string | null;
+  position: string | null;
+  displayName: string | null;
+  teamName: string | null;
 }
 
 const ESPN_CORE_BASE = "https://sports.core.api.espn.com/v2/sports";
 
 /**
- * Best-effort lookup of a player's current team ID and canonical headshot URL
- * via ESPN's core athlete endpoint. One network call, two fields. Returns
- * nulls on any failure — callers should treat missing fields as "unknown".
+ * Best-effort lookup of a player's current team ID, canonical headshot URL,
+ * primary position, display name, and current team name via ESPN's core
+ * athlete endpoint. One network call. Returns nulls on any failure —
+ * callers should treat missing fields as "unknown".
  *
  * `headshot.href` is the URL ESPN itself uses on espn.com and is more
  * reliable than guessing at a combiner path. `team.$ref` is a URL, not an id,
- * so we parse the trailing `/teams/{id}` segment out of it.
+ * so we parse the trailing `/teams/{id}` segment out of it. Position comes
+ * from `position.abbreviation` (e.g. "SP", "RP", "C", "1B") — we expose it
+ * so MLB pitcher vs batter trigger matching can route correctly.
+ *
+ * The team name ("Los Angeles Dodgers") is included specifically to help
+ * disambiguate MLB player ID lookups on statsapi.mlb.com (where a common
+ * surname might return multiple `people[]` entries).
  */
 export async function fetchPlayerDetails(
   league: League,
@@ -188,7 +198,15 @@ export async function fetchPlayerDetails(
   const url = `${ESPN_CORE_BASE}/${sport}/leagues/${lg}/athletes/${playerId}`;
   try {
     const res = await fetch(url);
-    if (!res.ok) return { teamId: null, headshotUrl: null };
+    if (!res.ok) {
+      return {
+        teamId: null,
+        headshotUrl: null,
+        position: null,
+        displayName: null,
+        teamName: null,
+      };
+    }
     const data = await res.json();
 
     const headshotRaw = data?.headshot?.href ?? null;
@@ -198,9 +216,41 @@ export async function fetchPlayerDetails(
       : null;
     const teamRaw = teamMatch?.[1] ?? null;
 
+    const positionRaw =
+      data?.position?.abbreviation ??
+      data?.position?.displayName ??
+      null;
+
+    const displayName =
+      typeof data?.displayName === "string"
+        ? data.displayName
+        : typeof data?.fullName === "string"
+          ? data.fullName
+          : null;
+
+    // ESPN's athlete response doesn't always inline the team display name —
+    // we best-effort resolve it from the linked team ref if possible.
+    let teamName: string | null = null;
+    if (typeof teamRef === "string") {
+      try {
+        const teamRes = await fetch(teamRef);
+        if (teamRes.ok) {
+          const teamData = await teamRes.json();
+          if (typeof teamData?.displayName === "string") {
+            teamName = teamData.displayName;
+          }
+        }
+      } catch {
+        // best-effort
+      }
+    }
+
     return {
       teamId: teamRaw ? String(teamRaw) : null,
       headshotUrl: headshotRaw ? String(headshotRaw) : null,
+      position: positionRaw ? String(positionRaw) : null,
+      displayName,
+      teamName,
     };
   } catch (err) {
     log.warn("espn.player_details_lookup_failed", {
@@ -208,7 +258,13 @@ export async function fetchPlayerDetails(
       playerId,
       error: String(err),
     });
-    return { teamId: null, headshotUrl: null };
+    return {
+      teamId: null,
+      headshotUrl: null,
+      position: null,
+      displayName: null,
+      teamName: null,
+    };
   }
 }
 

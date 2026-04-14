@@ -26,11 +26,14 @@ import {
   matchesTeamResult,
   isDuplicateAlert,
   parsePlay,
+  parseMLBPlay,
+  matchesMLBEntry,
   type ParsedPlay,
   type SubscriptionLike,
   type AlertLike,
 } from "./alerts";
 import type { ESPNEvent, ESPNPlay } from "./espn";
+import { parsePlayByPlayResponse, type MLBPlay } from "./mlb";
 
 // ---------- Fixtures -------------------------------------------------------
 

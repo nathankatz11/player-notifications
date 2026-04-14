@@ -10,6 +10,7 @@ import { sendPushToUser } from "./apns";
 import { sendSMSToUser } from "./twilio";
 import { log } from "./logger";
 import type { ESPNPlay, ESPNEvent, League } from "./espn";
+import type { MLBPlay } from "./mlb";
 
 type Trigger = string;
 
@@ -98,6 +99,35 @@ const TRIGGER_LABEL: Record<string, string> = {
   walk: "WALK",
   double: "DOUBLE",
   single: "SINGLE",
+  // Role-aware MLB triggers — the label is identical to the legacy
+  // non-role one because the emoji+description already communicate
+  // "X hit a HR off Y".
+  home_run_hit: "HOME RUN",
+  home_run_allowed: "HR ALLOWED",
+  strikeout_batting: "STRIKEOUT",
+  strikeout_pitched: "STRIKEOUT",
+};
+
+/**
+ * Role-aware MLB triggers and whether they apply to a batter or pitcher.
+ * Legacy ambiguous triggers (home_run, strikeout, stolen_base, walk) are
+ * treated as "batter-side" for backward compatibility — existing
+ * subscriptions created before this change keep firing as they did.
+ */
+type MLBRole = "batter" | "pitcher" | "runner";
+
+const MLB_TRIGGER_ROLE: Record<string, MLBRole> = {
+  home_run_hit: "batter",
+  home_run_allowed: "pitcher",
+  strikeout_batting: "batter",
+  strikeout_pitched: "pitcher",
+  // Legacy batter-side defaults
+  home_run: "batter",
+  strikeout: "batter",
+  walk: "batter",
+  stolen_base: "runner",
+  single: "batter",
+  double: "batter",
 };
 
 /**
@@ -557,4 +587,293 @@ export function parsePlay(play: ESPNPlay, league: League, event?: ESPNEvent): Pa
     triggers,
     description: formatAlertMessage(league, triggers[0], playText, event),
   };
+}
+
+// ----------------------- MLB Stats API provider path ----------------------
+//
+// When the cron processes an MLB game we feed the statsapi.mlb.com
+// play-by-play feed through this path instead of the ESPN text-based one
+// above. The key difference: every MLB play carries *explicit* batter AND
+// pitcher IDs, so we can produce one `ParsedPlay` per (role, player) pair
+// and let role-aware triggers (home_run_allowed, strikeout_pitched) fire
+// for the right side of the matchup.
+
+/**
+ * Internal shape of a parsed MLB play, with an extra `role` tag so the
+ * alert matcher knows whether each entry is the batter's side, the
+ * pitcher's side, or a runner's side. Exposed for tests.
+ */
+export interface ParsedMLBEntry extends ParsedPlay {
+  role: MLBRole;
+}
+
+/**
+ * Pure function: turn a normalized MLB play into zero, one, or more
+ * parsed entries — one per (role, entity) pair. A single home run
+ * produces two entries: the batter (with triggers `home_run_hit` +
+ * legacy `home_run`) and the pitcher (with `home_run_allowed`).
+ */
+export function parseMLBPlay(play: MLBPlay): ParsedMLBEntry[] {
+  const entries: ParsedMLBEntry[] = [];
+  const event = play.eventType;
+  if (!event) return entries;
+
+  const desc = play.description || event.replace(/_/g, " ");
+
+  // Home run → batter & pitcher entries
+  if (event === "home_run") {
+    if (play.batterId) {
+      entries.push({
+        role: "batter",
+        entityId: play.batterId,
+        entityIds: [play.batterId],
+        triggers: ["home_run_hit", "home_run"],
+        description: `⚾ HOME RUN — ${desc}`,
+      });
+    }
+    if (play.pitcherId) {
+      entries.push({
+        role: "pitcher",
+        entityId: play.pitcherId,
+        entityIds: [play.pitcherId],
+        triggers: ["home_run_allowed"],
+        description: `⚾ HR ALLOWED — ${desc}`,
+      });
+    }
+    return entries;
+  }
+
+  // Strikeout → batter (strikeout_batting + legacy strikeout) & pitcher (strikeout_pitched)
+  if (event === "strikeout") {
+    if (play.batterId) {
+      entries.push({
+        role: "batter",
+        entityId: play.batterId,
+        entityIds: [play.batterId],
+        triggers: ["strikeout_batting", "strikeout"],
+        description: `⚾ STRIKEOUT — ${desc}`,
+      });
+    }
+    if (play.pitcherId) {
+      entries.push({
+        role: "pitcher",
+        entityId: play.pitcherId,
+        entityIds: [play.pitcherId],
+        triggers: ["strikeout_pitched"],
+        description: `⚾ STRIKEOUT — ${desc}`,
+      });
+    }
+    return entries;
+  }
+
+  // Walk → batter-side only (legacy trigger)
+  if (event === "walk") {
+    if (play.batterId) {
+      entries.push({
+        role: "batter",
+        entityId: play.batterId,
+        entityIds: [play.batterId],
+        triggers: ["walk"],
+        description: `⚾ WALK — ${desc}`,
+      });
+    }
+    return entries;
+  }
+
+  // Single / double
+  if (event === "single" || event === "double") {
+    if (play.batterId) {
+      entries.push({
+        role: "batter",
+        entityId: play.batterId,
+        entityIds: [play.batterId],
+        triggers: [event],
+        description: `⚾ ${event.toUpperCase()} — ${desc}`,
+      });
+    }
+    return entries;
+  }
+
+  // Stolen base — runner-side
+  if (event.startsWith("stolen_base")) {
+    const who = play.runnerId ?? play.batterId;
+    if (who) {
+      entries.push({
+        role: "runner",
+        entityId: who,
+        entityIds: [who],
+        triggers: ["stolen_base"],
+        description: `⚾ STOLEN BASE — ${desc}`,
+      });
+    }
+    return entries;
+  }
+
+  return entries;
+}
+
+/**
+ * Pure predicate: does an MLB `ParsedMLBEntry` match a subscription,
+ * comparing the sub's `externalPlayerId` (MLB Stats API id) against the
+ * entry's entityId? Returns false for non-MLB subs or subs missing an
+ * `externalPlayerId`. Role consistency is implicit: if a pitcher-side
+ * trigger (home_run_allowed) is in the entry's triggers, only entries
+ * where `role === "pitcher"` were produced for that trigger.
+ */
+export function matchesMLBEntry(
+  entry: ParsedMLBEntry,
+  sub: { externalPlayerId: string | null; trigger: string; active: boolean; league: string }
+): boolean {
+  if (!sub.active) return false;
+  if (sub.league !== "mlb") return false;
+  if (!sub.externalPlayerId) return false;
+  if (!entry.triggers.includes(sub.trigger)) return false;
+  if (entry.entityId !== sub.externalPlayerId) return false;
+
+  // Extra safety: ensure the trigger's expected role lines up with the
+  // entry's role. Prevents weirdness if a caller hand-builds entries.
+  const expectedRole = MLB_TRIGGER_ROLE[sub.trigger];
+  if (expectedRole && expectedRole !== entry.role) return false;
+  return true;
+}
+
+/**
+ * Match an MLB play (from statsapi.mlb.com) against active MLB
+ * subscriptions and dispatch alerts.
+ *
+ * Differs from `matchAndAlert` in that the match is against the MLB
+ * Stats API player ID (stored as `subscriptions.externalPlayerId`) rather
+ * than the ESPN id in `subscriptions.entityId`. ESPN id is still stored
+ * and used by the iOS client for headshots.
+ */
+export async function matchAndAlertMLB(
+  play: MLBPlay,
+  gameId: string,
+  event?: ESPNEvent
+): Promise<number> {
+  const entries = parseMLBPlay(play);
+  if (entries.length === 0) return 0;
+
+  const allMlbIds = Array.from(
+    new Set(entries.map((e) => e.entityId).filter((x): x is string => !!x))
+  );
+  const allTriggers = Array.from(new Set(entries.flatMap((e) => e.triggers)));
+
+  if (allMlbIds.length === 0 || allTriggers.length === 0) return 0;
+
+  // Only MLB player subs with a resolved externalPlayerId can possibly
+  // match. We widen the trigger filter to include legacy values so an
+  // existing `trigger="home_run"` subscription still fires on a HR.
+  const matchingSubs = await db
+    .select()
+    .from(subscriptions)
+    .where(
+      and(
+        eq(subscriptions.league, "mlb"),
+        inArray(subscriptions.externalPlayerId, allMlbIds),
+        inArray(subscriptions.trigger, allTriggers),
+        eq(subscriptions.active, true)
+      )
+    );
+
+  if (matchingSubs.length === 0) return 0;
+
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const matchingSubIds = matchingSubs.map((s) => s.id);
+  const existing = matchingSubIds.length > 0 && play.playId
+    ? await db
+        .select({
+          subscriptionId: alerts.subscriptionId,
+          gameId: alerts.gameId,
+          playId: alerts.playId,
+        })
+        .from(alerts)
+        .where(
+          and(
+            inArray(alerts.subscriptionId, matchingSubIds),
+            eq(alerts.gameId, gameId),
+            eq(alerts.playId, play.playId),
+            gte(alerts.sentAt, twentyFourHoursAgo)
+          )
+        )
+    : [];
+
+  let dispatched = 0;
+
+  // Match each sub against the entry list and pick the first entry whose
+  // (entityId, trigger, role) aligns. This way a pitcher-sub for
+  // "home_run_allowed" matches the pitcher entry (not the batter entry).
+  for (const sub of matchingSubs) {
+    const entry = entries.find((e) =>
+      matchesMLBEntry(e, {
+        externalPlayerId: sub.externalPlayerId,
+        trigger: sub.trigger,
+        active: sub.active,
+        league: sub.league,
+      })
+    );
+    if (!entry) continue;
+
+    const description = formatAlertMessage(
+      "mlb",
+      entry.triggers[0],
+      entry.description.replace(/^⚾\s+[A-Z ]+—\s*/, ""),
+      event
+    );
+
+    const candidate: AlertLike = {
+      subscriptionId: sub.id,
+      gameId,
+      playId: play.playId ?? "",
+    };
+    if (play.playId && isDuplicateAlert(candidate, existing.map((e) => ({
+      subscriptionId: e.subscriptionId,
+      gameId: e.gameId,
+      playId: e.playId ?? "",
+    })))) {
+      log.info("alerts.dedupe_skip", {
+        subscriptionId: sub.id,
+        gameId,
+        playId: play.playId,
+      });
+      continue;
+    }
+
+    let alertRow;
+    try {
+      [alertRow] = await db
+        .insert(alerts)
+        .values({
+          subscriptionId: sub.id,
+          userId: sub.userId,
+          message: description,
+          deliveryMethod: sub.deliveryMethod ?? "push",
+          gameId,
+          eventDescription: play.description || play.eventType,
+          playId: play.playId ?? null,
+        })
+        .returning();
+    } catch (err) {
+      log.info("alerts.dedupe_race", {
+        subscriptionId: sub.id,
+        gameId,
+        playId: play.playId,
+        error: String(err),
+      });
+      continue;
+    }
+
+    if (sub.deliveryMethod === "push" || sub.deliveryMethod === "both") {
+      await sendPushToUser(sub.userId, description, {
+        subscriptionId: sub.id,
+        alertId: alertRow?.id,
+      });
+    }
+    if (sub.deliveryMethod === "sms" || sub.deliveryMethod === "both") {
+      await sendSMSToUser(sub.userId, description);
+    }
+    dispatched++;
+  }
+
+  return dispatched;
 }

@@ -249,7 +249,8 @@ struct AddAlertView: View {
                 id: side.teamId,
                 name: side.teamName,
                 type: "team",
-                imageUrl: nil
+                imageUrl: nil,
+                position: nil
             )
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             step = .trigger(team, league)
@@ -288,7 +289,8 @@ struct AddAlertView: View {
                 id: player.id,
                 name: player.name,
                 type: "player",
-                imageUrl: player.headshotUrl
+                imageUrl: player.headshotUrl,
+                position: player.position
             )
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             step = .trigger(entity, league)
@@ -575,7 +577,8 @@ struct AddAlertView: View {
             id: player.id,
             name: player.name,
             type: "player",
-            imageUrl: nil
+            imageUrl: nil,
+            position: nil
         )
         pickEntity(result)
     }
@@ -585,7 +588,8 @@ struct AddAlertView: View {
             id: team.id,
             name: team.name,
             type: "team",
-            imageUrl: team.logoUrl
+            imageUrl: team.logoUrl,
+            position: nil
         )
         pickEntity(result)
     }
@@ -728,31 +732,81 @@ private struct TriggerStep: View {
                     .frame(maxWidth: .infinity)
                     .padding(.top, 48)
                     .padding(.horizontal, 24)
+                } else if shouldGroupMLBPlayerTriggers {
+                    groupedMLBTriggers
+                        .padding(16)
                 } else {
                     LazyVGrid(
-                        columns: [
-                            GridItem(.flexible(), spacing: 12),
-                            GridItem(.flexible(), spacing: 12),
-                            GridItem(.flexible(), spacing: 12),
-                        ],
+                        columns: triggerColumns,
                         spacing: 12
                     ) {
                         ForEach(league.triggers, id: \.self) { trigger in
-                            TriggerChip(
-                                trigger: trigger,
-                                league: league,
-                                isLoading: isCreating && pendingTrigger == trigger,
-                                disabled: isCreating
-                            ) {
-                                pendingTrigger = trigger
-                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                                onPick(trigger)
-                            }
+                            triggerChip(for: trigger)
                         }
                     }
                     .padding(16)
                 }
             }
+        }
+    }
+
+    /// Show grouped sections only for MLB players. Teams and non-MLB leagues
+    /// use the original ungrouped grid so existing flows look unchanged.
+    private var shouldGroupMLBPlayerTriggers: Bool {
+        league == .mlb && entity.type == "player"
+    }
+
+    private var triggerColumns: [GridItem] {
+        [
+            GridItem(.flexible(), spacing: 12),
+            GridItem(.flexible(), spacing: 12),
+            GridItem(.flexible(), spacing: 12),
+        ]
+    }
+
+    @ViewBuilder
+    private var groupedMLBTriggers: some View {
+        let pitching = league.triggers.filter { $0.mlbRole == .pitching }
+        let batting = league.triggers.filter { $0.mlbRole == .batting }
+        let team = league.triggers.filter { $0.mlbRole == .team }
+
+        VStack(alignment: .leading, spacing: 18) {
+            if !pitching.isEmpty {
+                triggerSection(title: "Pitching", triggers: pitching)
+            }
+            if !batting.isEmpty {
+                triggerSection(title: "Batting", triggers: batting)
+            }
+            if !team.isEmpty {
+                triggerSection(title: "Team", triggers: team)
+            }
+        }
+    }
+
+    private func triggerSection(title: String, triggers: [TriggerType]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            LazyVGrid(columns: triggerColumns, spacing: 12) {
+                ForEach(triggers, id: \.self) { trigger in
+                    triggerChip(for: trigger)
+                }
+            }
+        }
+    }
+
+    private func triggerChip(for trigger: TriggerType) -> some View {
+        TriggerChip(
+            trigger: trigger,
+            league: league,
+            isLoading: isCreating && pendingTrigger == trigger,
+            disabled: isCreating
+        ) {
+            pendingTrigger = trigger
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            onPick(trigger)
         }
     }
 

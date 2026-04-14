@@ -45,6 +45,18 @@ export const subscriptions = pgTable("subscriptions", {
   // creation time. Avoids per-render URL guessing (ESPN's combiner path
   // 404s or returns a silhouette for many athletes).
   photoUrl: text("photo_url"),
+  // For MLB player subscriptions only: the player's position abbreviation
+  // ("P", "SP", "RP", "C", "1B", "OF", etc.). Populated server-side at
+  // creation time via the ESPN athlete endpoint. Null for non-MLB and team
+  // subscriptions. Used by role-aware MLB trigger matching in alerts.ts to
+  // pick whether a play's batter-side or pitcher-side role applies.
+  position: text("position"),
+  // For MLB player subscriptions only: the MLB Stats API player ID
+  // (statsapi.mlb.com). Our primary `entityId` is the ESPN ID (used for
+  // headshots + search), but the MLB Stats API play-by-play feed uses its
+  // own numeric IDs for batter/pitcher/runner, so we resolve+cache this
+  // once at subscription creation time.
+  externalPlayerId: text("external_player_id"),
   trigger: text("trigger").notNull(),
   deliveryMethod: deliveryMethodEnum("delivery_method").notNull().default("push"),
   active: boolean("active").notNull().default(true),
