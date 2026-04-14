@@ -732,8 +732,8 @@ private struct TriggerStep: View {
                     .frame(maxWidth: .infinity)
                     .padding(.top, 48)
                     .padding(.horizontal, 24)
-                } else if shouldGroupMLBPlayerTriggers {
-                    groupedMLBTriggers
+                } else if shouldGroupPlayerTriggers {
+                    groupedTriggers
                         .padding(16)
                 } else {
                     LazyVGrid(
@@ -750,10 +750,12 @@ private struct TriggerStep: View {
         }
     }
 
-    /// Show grouped sections only for MLB players. Teams and non-MLB leagues
-    /// use the original ungrouped grid so existing flows look unchanged.
-    private var shouldGroupMLBPlayerTriggers: Bool {
-        league == .mlb && entity.type == "player"
+    /// Show grouped sections only when the selected league supplies role
+    /// groupings for its triggers AND the entity is a player. Teams and
+    /// leagues without role grouping fall back to the original flat grid.
+    private var shouldGroupPlayerTriggers: Bool {
+        guard entity.type == "player" else { return false }
+        return league.triggers.contains { $0.roleGroup(for: league) != nil }
     }
 
     private var triggerColumns: [GridItem] {
@@ -765,20 +767,26 @@ private struct TriggerStep: View {
     }
 
     @ViewBuilder
-    private var groupedMLBTriggers: some View {
-        let pitching = league.triggers.filter { $0.mlbRole == .pitching }
-        let batting = league.triggers.filter { $0.mlbRole == .batting }
-        let team = league.triggers.filter { $0.mlbRole == .team }
+    private var groupedTriggers: some View {
+        // Bucket each trigger under its league-specific role group. Triggers
+        // that don't belong to any group (shouldn't happen for leagues that
+        // opt into grouping, but handled defensively) are dropped here; the
+        // fallback grid path covers leagues without groupings entirely.
+        let groups: [(RoleGroup, [TriggerType])] = {
+            var buckets: [RoleGroup: [TriggerType]] = [:]
+            for trigger in league.triggers {
+                if let group = trigger.roleGroup(for: league) {
+                    buckets[group, default: []].append(trigger)
+                }
+            }
+            return buckets
+                .map { ($0.key, $0.value) }
+                .sorted { $0.0 < $1.0 }
+        }()
 
         VStack(alignment: .leading, spacing: 18) {
-            if !pitching.isEmpty {
-                triggerSection(title: "Pitching", triggers: pitching)
-            }
-            if !batting.isEmpty {
-                triggerSection(title: "Batting", triggers: batting)
-            }
-            if !team.isEmpty {
-                triggerSection(title: "Team", triggers: team)
+            ForEach(groups, id: \.0) { group, triggers in
+                triggerSection(title: group.rawValue, triggers: triggers)
             }
         }
     }

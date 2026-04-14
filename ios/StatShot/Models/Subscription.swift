@@ -114,7 +114,7 @@ enum League: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .nba: [.pointsScored, .turnover, .technicalFoul, .ejection, .threePointer, .block, .steal, .dunk, .teamWin, .teamLoss]
         case .nfl: [.touchdown, .interception, .fumble, .sack, .fieldGoal, .reception, .rush, .teamWin, .teamLoss]
-        case .nhl: [.goal, .penalty, .shotOnGoal, .hit, .blockedShot, .takeaway, .giveaway, .teamWin, .teamLoss]
+        case .nhl: [.goalScored, .goalAllowed, .assist, .penalty, .hatTrick, .shutout, .shotOnGoal, .hit, .blockedShot, .takeaway, .giveaway, .teamWin, .teamLoss]
         case .mlb: [.homeRunAllowed, .homeRunHit, .strikeoutPitched, .strikeoutBatting, .stolenBase, .error, .walk, .double, .single, .teamWin, .teamLoss]
         case .ncaafb: [.touchdown, .fieldGoal, .teamWin, .teamLoss]
         case .ncaamb: [.pointsScored, .teamWin, .teamLoss]
@@ -165,6 +165,8 @@ enum TriggerType: String, Codable, CaseIterable, Identifiable {
     case homeRunHit = "home_run_hit"
     case strikeoutPitched = "strikeout_pitched"
     case strikeoutBatting = "strikeout_batting"
+    case goalScored = "goal_scored"
+    case goalAllowed = "goal_allowed"
 
     var id: String { rawValue }
 
@@ -211,6 +213,8 @@ enum TriggerType: String, Codable, CaseIterable, Identifiable {
         case .homeRunHit: "Home Runs"
         case .strikeoutPitched: "Ks Thrown"
         case .strikeoutBatting: "Ks at Bat"
+        case .goalScored: "Goals"
+        case .goalAllowed: "Goals Allowed"
         }
     }
 
@@ -257,6 +261,8 @@ enum TriggerType: String, Codable, CaseIterable, Identifiable {
         case .homeRunHit: "HRs"
         case .strikeoutPitched: "Ks"
         case .strikeoutBatting: "KBats"
+        case .goalScored: "GOAL"
+        case .goalAllowed: "GA"
         }
     }
 
@@ -303,20 +309,58 @@ enum TriggerType: String, Codable, CaseIterable, Identifiable {
         case .homeRunHit: "When they hit one out"
         case .strikeoutPitched: "When they strike someone out"
         case .strikeoutBatting: "When they strike out"
+        case .goalScored: "When they put it in the net"
+        case .goalAllowed: "When they give one up"
         }
     }
 
-    /// MLB role classification used to filter/group triggers for pitchers vs batters.
-    /// `.none` means league-agnostic (team triggers, or not MLB-specific).
-    enum MLBRole { case pitching, batting, team, none }
+    /// League-aware role grouping for the trigger picker. Returns the section
+    /// heading a trigger belongs under when grouping is enabled for a player
+    /// in that league, or `nil` if the league doesn't group triggers.
+    func roleGroup(for league: League) -> RoleGroup? {
+        switch league {
+        case .mlb:
+            switch self {
+            case .strikeoutPitched, .homeRunAllowed, .walk: return .pitching
+            case .homeRunHit, .strikeoutBatting, .stolenBase, .double, .single, .error: return .batting
+            case .teamWin, .teamLoss: return .team
+            case .homeRun, .strikeout: return .batting // legacy rows → batter side
+            default: return nil
+            }
+        case .nhl:
+            switch self {
+            case .goalAllowed, .shutout: return .goalie
+            case .goalScored, .assist, .penalty, .hatTrick, .shotOnGoal, .hit, .blockedShot, .takeaway, .giveaway: return .skating
+            case .teamWin, .teamLoss: return .team
+            case .goal: return .skating // legacy rows → scorer side
+            default: return nil
+            }
+        default:
+            return nil
+        }
+    }
+}
 
-    var mlbRole: MLBRole {
+/// Section header for the grouped trigger picker. Sort order determines
+/// the order of sections in the UI (role-specific first, `.team` last).
+enum RoleGroup: String, Comparable {
+    case pitching = "PITCHING"
+    case batting = "BATTING"
+    case skating = "SKATING"
+    case goalie = "GOALIE"
+    case team = "TEAM"
+
+    static func < (lhs: RoleGroup, rhs: RoleGroup) -> Bool {
+        lhs.sortOrder < rhs.sortOrder
+    }
+
+    var sortOrder: Int {
         switch self {
-        case .homeRunAllowed, .strikeoutPitched: .pitching
-        case .homeRunHit, .strikeoutBatting, .stolenBase, .walk, .double, .single: .batting
-        case .error: .batting // fielding error — treat as non-pitcher here; backend matches by role anyway.
-        case .teamWin, .teamLoss: .team
-        default: .none
+        case .pitching: 0
+        case .batting: 1
+        case .skating: 0
+        case .goalie: 1
+        case .team: 99
         }
     }
 }
