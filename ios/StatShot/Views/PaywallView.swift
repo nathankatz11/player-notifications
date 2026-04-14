@@ -44,7 +44,7 @@ struct PaywallView: View {
 
     private var featuresComparison: some View {
         VStack(spacing: 12) {
-            featureRow("Unlimited alerts", freeText: "3 max", premiumText: "Unlimited")
+            featureRow("Unlimited alerts", freeText: "1000", premiumText: "Unlimited")
             featureRow("Push notifications", freeCheck: true, premiumCheck: true)
             featureRow("SMS alerts", freeCheck: false, premiumCheck: true)
             featureRow("Alert history", freeText: "7 days", premiumText: "90 days")

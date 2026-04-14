@@ -6,7 +6,7 @@ import { subscriptions, users } from "@/lib/db/schema";
 import { fetchPlayerDetails, type League } from "@/lib/espn";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
-const FREE_TIER_LIMIT = 10;
+const FREE_TIER_LIMIT = 1000;
 
 const createSubscriptionSchema = z.object({
   userId: z.string().min(1),
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/subscriptions
- * Create a new subscription. Enforces free tier limit (3 max).
+ * Create a new subscription. Enforces free tier limit (1000 max).
  */
 export async function POST(req: NextRequest) {
   const limited = await enforceRateLimit(req, "subscriptions:create", {
