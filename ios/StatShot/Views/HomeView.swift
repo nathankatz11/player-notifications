@@ -8,6 +8,9 @@ struct HomeView: View {
     @State private var filteredGames: [LeagueGame] = []
     @State private var isLoadingFeed = false
     @State private var selectedGame: LeagueGame?
+    @State private var showingArchived = false
+
+    private static let pausedStripLimit = 3
 
     var body: some View {
         NavigationStack {
@@ -41,6 +44,15 @@ struct HomeView: View {
             }
             .sheet(item: $selectedGame) { lg in
                 GameDetailSheet(game: lg.game, league: lg.league)
+            }
+            .sheet(isPresented: $showingArchived) {
+                ArchivedSubscriptionsView(
+                    subscriptions: archivedSubscriptions,
+                    onSelect: { sub in
+                        showingArchived = false
+                        selectedSubscription = sub
+                    }
+                )
             }
             .onChange(of: showingAddAlert) { _, isShowing in
                 if !isShowing { Task { await loadAll() } }
@@ -103,18 +115,31 @@ struct HomeView: View {
         return !id.isEmpty && liveTeamIds.contains(id)
     }
 
+    /// All paused subs, newest first.
+    private var archivedSubscriptions: [Subscription] {
+        viewModel.subscriptions
+            .filter { !$0.active }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
     private var favoritesStrip: some View {
-        // Live first, then active non-live, then paused (Instagram-stories style).
-        let sorted = viewModel.subscriptions.sorted { lhs, rhs in
-            let lhsLive = isLive(lhs)
-            let rhsLive = isLive(rhs)
-            if lhsLive != rhsLive { return lhsLive }
-            if lhs.active != rhs.active { return lhs.active }
-            return lhs.createdAt > rhs.createdAt
-        }
+        // Live first, then active non-live, then the 3 most-recent paused.
+        let active = viewModel.subscriptions
+            .filter { $0.active }
+            .sorted { lhs, rhs in
+                let lhsLive = isLive(lhs)
+                let rhsLive = isLive(rhs)
+                if lhsLive != rhsLive { return lhsLive }
+                return lhs.createdAt > rhs.createdAt
+            }
+        let paused = archivedSubscriptions
+        let pausedHead = Array(paused.prefix(Self.pausedStripLimit))
+        let overflow = max(0, paused.count - Self.pausedStripLimit)
+        let displayed = active + pausedHead
+
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 14) {
-                ForEach(sorted) { subscription in
+                ForEach(displayed) { subscription in
                     FavoriteChip(subscription: subscription, isLive: isLive(subscription))
                         .onTapGesture {
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -139,6 +164,13 @@ struct HomeView: View {
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
+                        }
+                }
+                if overflow > 0 {
+                    MoreChip(count: overflow)
+                        .onTapGesture {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            showingArchived = true
                         }
                 }
             }
@@ -608,5 +640,84 @@ private struct AlertFeedCard: View {
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(color.opacity(0.7))
             }
+    }
+}
+
+// MARK: - More Chip
+
+private struct MoreChip: View {
+    let count: Int
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .strokeBorder(Color.secondary.opacity(0.4), lineWidth: 2)
+                    .frame(width: 62, height: 62)
+                Circle()
+                    .fill(Color.secondary.opacity(0.12))
+                    .frame(width: 54, height: 54)
+                VStack(spacing: 0) {
+                    Text("+\(count)")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                    Text("more")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Text("Archived")
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .foregroundStyle(.secondary)
+                .frame(width: 72)
+        }
+    }
+}
+
+// MARK: - Archived Subscriptions View
+
+private struct ArchivedSubscriptionsView: View {
+    let subscriptions: [Subscription]
+    let onSelect: (Subscription) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 80, maximum: 100), spacing: 16)
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                if subscriptions.isEmpty {
+                    ContentUnavailableView(
+                        "No Archived Alerts",
+                        systemImage: "archivebox",
+                        description: Text("Paused alerts will show up here.")
+                    )
+                    .padding(.top, 40)
+                } else {
+                    LazyVGrid(columns: columns, spacing: 20) {
+                        ForEach(subscriptions) { sub in
+                            FavoriteChip(subscription: sub, isLive: false)
+                                .onTapGesture {
+                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                    onSelect(sub)
+                                }
+                        }
+                    }
+                    .padding(16)
+                }
+            }
+            .navigationTitle("Archived")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
     }
 }
