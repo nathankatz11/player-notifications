@@ -26,6 +26,12 @@ struct SettingsView: View {
                 await checkNotificationStatus()
                 await authViewModel.loadProfile()
             }
+            // Re-query on every appearance (e.g. tab switch) so the row
+            // reflects changes made in iOS Settings while the app was
+            // foregrounded on a different tab.
+            .onChange(of: NotificationAuthState.shared.status) { _, status in
+                notificationsEnabled = (status == .authorized || status == .provisional)
+            }
             .confirmationDialog(
                 "Sign out of StatShot?",
                 isPresented: $showingSignOutConfirmation,
@@ -131,17 +137,40 @@ struct SettingsView: View {
 
     private var notificationSection: some View {
         Section("Notifications") {
-            HStack {
-                Text("Push Notifications")
-                Spacer()
-                if notificationsEnabled {
-                    Text("Enabled")
-                        .foregroundStyle(.green)
-                } else {
-                    Text("Disabled")
-                        .foregroundStyle(.red)
+            Button {
+                // Only actually deep-link when the status is denied — if
+                // enabled, tapping the row should still feel harmless but
+                // there's nothing to toggle, so we no-op.
+                guard NotificationAuthState.shared.status == .denied,
+                      let url = URL(string: UIApplication.openSettingsURLString) else {
+                    return
+                }
+                UIApplication.shared.open(url)
+            } label: {
+                HStack(spacing: 8) {
+                    Text("Push Notifications")
+                        .foregroundStyle(.primary)
+
+                    // Red dot when the permission is denied — draws the eye
+                    // to the one thing the user can fix from here.
+                    if NotificationAuthState.shared.status == .denied {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                            .accessibilityLabel("Notifications disabled")
+                    }
+
+                    Spacer()
+                    if notificationsEnabled {
+                        Text("Enabled")
+                            .foregroundStyle(.green)
+                    } else {
+                        Text("Disabled")
+                            .foregroundStyle(.red)
+                    }
                 }
             }
+            .buttonStyle(.plain)
 
             if !notificationsEnabled {
                 Button("Enable in Settings") {

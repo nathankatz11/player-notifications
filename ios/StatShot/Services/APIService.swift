@@ -36,6 +36,41 @@ final class APIService: Sendable {
         return result?["id"] as? String ?? ""
     }
 
+    // MARK: - Sign in with Apple
+
+    struct AppleFullName: Encodable, Sendable {
+        let givenName: String?
+        let familyName: String?
+    }
+
+    struct AppleAuthRequest: Encodable {
+        let identityToken: String
+        let appleUserId: String
+        let email: String?
+        let fullName: AppleFullName?
+    }
+
+    struct AppleAuthResponse: Decodable, Sendable {
+        let userId: String
+        let email: String?
+    }
+
+    func signInWithApple(
+        identityToken: String,
+        appleUserId: String,
+        email: String?,
+        fullName: AppleFullName?
+    ) async throws -> AppleAuthResponse {
+        let body = AppleAuthRequest(
+            identityToken: identityToken,
+            appleUserId: appleUserId,
+            email: email,
+            fullName: fullName
+        )
+        let data = try await post("/api/auth/apple", body: body)
+        return try decoder.decode(AppleAuthResponse.self, from: data)
+    }
+
     // MARK: - Teams
 
     func fetchTeams(league: String) async throws -> [Team] {

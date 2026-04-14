@@ -17,33 +17,66 @@ final class AuthViewModel {
         isAuthenticated = AuthService.shared.isAuthenticated
     }
 
-    /// Test-mode sign in: registers with a hardcoded email and simulator token.
-    /// Replace with real Sign in with Apple once Apple Developer setup is complete.
+    /// Runs the real Sign in with Apple flow. On success, persists the backend
+    /// userId + email in Keychain (via AuthService) and then forwards any
+    /// cached APNs token so pushes start flowing. On failure, surfaces a
+    /// user-visible error message and leaves `isAuthenticated` alone so the
+    /// UI can re-present the sign-in button.
     func signInWithApple() async {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
 
         do {
-            // Wait up to 3s for iOS to deliver the real APNs token before
-            // hitting /api/register. Without this, the first registration
-            // posts the placeholder and is overwritten ~1s later by
-            // `refreshAPNsToken`, leaving a brief window of garbage on the
-            // backend. On simulator (no APNs callback) this falls through to
-            // the placeholder after the timeout.
-            let apnsToken = await NotificationService.shared.awaitDeviceToken(
-                timeout: .seconds(3)
-            ) ?? "simulator-token"
+            // Kick off the native SIWA sheet (modal). Blocks until user either
+            // completes or cancels; cancellation surfaces as
+            // ASAuthorizationError.canceled, which we treat as a no-op
+            // (no error banner, stays on sign-in screen).
+            _ = try await AuthService.shared.signInWithApple()
 
-            try await AuthService.shared.register(
-                email: "test@statshot.app",
-                apnsToken: apnsToken
-            )
+            // Wait briefly for the APNs token (if we don't already have one),
+            // then upsert the device/user via /api/register so the user row
+            // has the latest token. On simulator this times out and the
+            // register call is skipped.
+            if let email = AuthService.shared.currentEmail {
+                let apnsToken = await NotificationService.shared.awaitDeviceToken(
+                    timeout: .seconds(3)
+                )
+                if let apnsToken {
+                    _ = try? await APIService.shared.register(
+                        email: email,
+                        apnsToken: apnsToken
+                    )
+                }
+            }
+
             isAuthenticated = true
             await loadProfile()
         } catch {
+            if isUserCancellation(error) {
+                // User tapped Cancel on the SIWA sheet — stay silent.
+                return
+            }
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Detects "user canceled" from an underlying `ASAuthorizationError`
+    /// without forcing a direct import of `AuthenticationServices` into this
+    /// file. `ASAuthorizationError.canceled.rawValue == 1001`.
+    private func isUserCancellation(_ error: Error) -> Bool {
+        let ns = error as NSError
+        if ns.domain == "com.apple.AuthenticationServices.AuthorizationError"
+            && ns.code == 1001 {
+            return true
+        }
+        // Our wrapped form.
+        if case AuthError.signInFailed(let underlying) = error {
+            let underNS = underlying as NSError
+            return underNS.domain == "com.apple.AuthenticationServices.AuthorizationError"
+                && underNS.code == 1001
+        }
+        return false
     }
 
     func loadProfile() async {
@@ -80,3 +113,4 @@ final class AuthViewModel {
         xHandle = ""
     }
 }
+

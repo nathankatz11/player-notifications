@@ -1,6 +1,43 @@
 import Foundation
+import Observation
 import UIKit
 import UserNotifications
+
+/// Tracks the current iOS notification authorization status so the UI can
+/// surface a persistent, dismissible banner when the user has denied the
+/// permission prompt. Kept separate from `NotificationService` (which is a
+/// `@unchecked Sendable` APNs shim with non-isolated delegate callbacks) so we
+/// can mark this state `@MainActor @Observable` without fighting the compiler.
+@MainActor
+@Observable
+final class NotificationAuthState {
+    static let shared = NotificationAuthState()
+
+    enum Status {
+        case unknown
+        case authorized
+        case denied
+        case provisional
+        case ephemeral
+    }
+
+    var status: Status = .unknown
+
+    private init() {}
+
+    /// Re-reads the system notification settings. Safe to call from any view
+    /// `.task` / `.onChange(of: scenePhase)` — it just queries the OS.
+    func refresh() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        status = switch settings.authorizationStatus {
+        case .authorized: .authorized
+        case .denied: .denied
+        case .provisional: .provisional
+        case .ephemeral: .ephemeral
+        default: .unknown
+        }
+    }
+}
 
 /// Handles APNs push notification registration and permission requests.
 /// Sends device token to the Vercel backend for direct APNs delivery.
@@ -30,6 +67,13 @@ final class NotificationService: NSObject, @unchecked Sendable {
 
             if let error {
                 print("Notification authorization error: \(error)")
+            }
+
+            // Whatever the user chose (including "Don't Allow"), sync the
+            // observable status so the UI can react — banner in HomeView,
+            // badge in SettingsView, etc.
+            Task { @MainActor in
+                await NotificationAuthState.shared.refresh()
             }
         }
     }

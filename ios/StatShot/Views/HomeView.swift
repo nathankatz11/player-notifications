@@ -9,6 +9,18 @@ struct HomeView: View {
     @State private var isLoadingFeed = false
     @State private var selectedGame: LeagueGame?
     @State private var showingArchived = false
+    /// Session-scoped dismissal for the denied-notifications banner. Resets
+    /// when the app is relaunched — by design, so we keep nudging users
+    /// whose pushes would otherwise never arrive.
+    @State private var notificationsBannerDismissed = false
+
+    /// The banner only shows for `.denied`. `.authorized` and `.provisional`
+    /// are both "notifications will be delivered" states and don't need UI.
+    /// `.unknown` is the pre-prompt state; we let the system prompt handle it.
+    private var shouldShowNotificationsBanner: Bool {
+        !notificationsBannerDismissed
+            && NotificationAuthState.shared.status == .denied
+    }
 
     private static let pausedStripLimit = 3
 
@@ -19,7 +31,17 @@ struct HomeView: View {
                     ProgressView("Loading...")
                         .frame(maxHeight: .infinity)
                 } else if viewModel.subscriptions.isEmpty {
-                    emptyState
+                    VStack(spacing: 16) {
+                        if shouldShowNotificationsBanner {
+                            NotificationsDeniedBanner {
+                                withAnimation(.easeInOut) {
+                                    notificationsBannerDismissed = true
+                                }
+                            }
+                            .padding(.top, 8)
+                        }
+                        emptyState
+                    }
                 } else {
                     feedContent
                 }
@@ -81,6 +103,15 @@ struct HomeView: View {
     private var feedContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                if shouldShowNotificationsBanner {
+                    NotificationsDeniedBanner {
+                        withAnimation(.easeInOut) {
+                            notificationsBannerDismissed = true
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+
                 favoritesStrip
                     .padding(.top, 4)
 
