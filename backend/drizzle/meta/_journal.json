@@ -36,6 +36,13 @@
       "when": 1777017600000,
       "tag": "0004_add_subscription_position",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777276800000,
+      "tag": "0005_add_apple_user_id",
+      "breakpoints": true
     }
   ]
 }

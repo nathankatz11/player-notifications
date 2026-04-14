@@ -11,9 +11,11 @@ import {
   type ESPNEvent,
 } from "@/lib/espn";
 import { fetchMLBPlayByPlay } from "@/lib/mlb";
+import { fetchNHLPlayByPlay, fetchNHLSchedule } from "@/lib/nhl";
 import {
   matchAndAlert,
   matchAndAlertMLB,
+  matchAndAlertNHL,
   dispatchTeamResult,
 } from "@/lib/alerts";
 import { log } from "@/lib/logger";
@@ -124,7 +126,49 @@ async function pollLeague(league: League): Promise<number> {
     alerts += await processGame(league, game);
   }
 
+  // NHL has a role-aware provider path on top of the ESPN text-based one.
+  // The NHL feed is keyed by NHL's own numeric game ids, not ESPN event ids,
+  // so we fetch today's NHL schedule once and iterate those game ids — this
+  // fires `goal_allowed` / `assist` / `goal_scored` triggers which require
+  // per-role player ids the ESPN feed doesn't carry.
+  if (league === "nhl" && toProcess.length > 0) {
+    try {
+      alerts += await pollNHLRoleAware();
+    } catch (err) {
+      log.error("cron.poll.nhl_role_aware_failed", { error: String(err) });
+    }
+  }
+
   return alerts;
+}
+
+/**
+ * Secondary NHL polling pass using api-web.nhle.com for role-aware
+ * triggers (scorer / assister / goalie-in-net). Dedupe is keyed by NHL's
+ * own `eventId` stored as playId, which doesn't collide with ESPN play ids.
+ */
+async function pollNHLRoleAware(): Promise<number> {
+  const schedule = await fetchNHLSchedule(new Date());
+  // Only run against live games; played games won't add new plays and
+  // pre-game games carry no plays.
+  const liveIds = schedule
+    .filter((g) => g.state === "LIVE" || g.state === "CRIT")
+    .map((g) => g.gameId);
+
+  if (liveIds.length === 0) return 0;
+
+  let dispatched = 0;
+  for (const gameId of liveIds) {
+    try {
+      const nhlPlays = await fetchNHLPlayByPlay(gameId);
+      for (const play of nhlPlays) {
+        dispatched += await matchAndAlertNHL(play, gameId);
+      }
+    } catch (err) {
+      log.warn("cron.poll.nhl_game_failed", { gameId, error: String(err) });
+    }
+  }
+  return dispatched;
 }
 
 async function processGame(league: League, event: ESPNEvent): Promise<number> {
@@ -138,38 +182,27 @@ async function processGame(league: League, event: ESPNEvent): Promise<number> {
   let dispatched = 0;
   let latestPlayId: string = lastPlayId;
 
-  if (league === "mlb") {
-    // MLB: use the statsapi.mlb.com play-by-play feed instead of ESPN.
-    // statsapi games are keyed by a numeric `gamePk`, but ESPN's event.id
-    // is not that number. We derive gamePk from the linescore/plays if
-    // present on the ESPN event payload, falling back to ESPN's id (the
-    // stats feed coerces string ids into a 404 — which we log & skip).
-    const mlbPlays = await fetchMLBPlayByPlay(gameId);
-    if (mlbPlays.length > 0) {
-      const lastIdx = lastPlayId
-        ? mlbPlays.findIndex((p) => p.playId === lastPlayId)
-        : -1;
-      const newPlays = lastIdx === -1 ? mlbPlays : mlbPlays.slice(lastIdx + 1);
-      for (const play of newPlays) {
-        dispatched += await matchAndAlertMLB(play, gameId, event);
-      }
-      latestPlayId = mlbPlays[mlbPlays.length - 1].playId;
-    }
-  } else {
-    // Non-MLB leagues keep the existing ESPN flow.
-    const plays = await fetchGameSummary(league, gameId);
-    if (plays.length > 0) {
-      const lastPlayIndex = lastPlayId
-        ? plays.findIndex((p: ESPNPlay) => p.id === lastPlayId)
-        : -1;
-      const newPlays =
-        lastPlayIndex === -1 ? plays : plays.slice(lastPlayIndex + 1);
+  // NOTE: MLB originally had a separate statsapi.mlb.com path for
+  // role-aware pitcher/batter triggers. It was wired with ESPN's event id,
+  // but statsapi uses a different numeric `gamePk` — so every call 404'd
+  // and zero plays came back. Falling through to the ESPN flow for all
+  // leagues; parsePlay in alerts.ts has MLB text detection for home_run /
+  // strikeout / walk / single / double / stolen_base that covers the
+  // legacy batter-side triggers. Pitcher-side triggers will be re-enabled
+  // once we resolve gamePk from ESPN events (schedule lookup by date +
+  // team abbreviations).
+  const plays = await fetchGameSummary(league, gameId);
+  if (plays.length > 0) {
+    const lastPlayIndex = lastPlayId
+      ? plays.findIndex((p: ESPNPlay) => p.id === lastPlayId)
+      : -1;
+    const newPlays =
+      lastPlayIndex === -1 ? plays : plays.slice(lastPlayIndex + 1);
 
-      for (const play of newPlays) {
-        dispatched += await matchAndAlert(play, gameId, league, event);
-      }
-      latestPlayId = plays[plays.length - 1].id;
+    for (const play of newPlays) {
+      dispatched += await matchAndAlert(play, gameId, league, event);
     }
+    latestPlayId = plays[plays.length - 1].id;
   }
 
   // Fire team_win / team_loss on transition to final. Dedupe lives inside

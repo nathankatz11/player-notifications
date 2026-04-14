@@ -11,6 +11,7 @@ import { sendSMSToUser } from "./twilio";
 import { log } from "./logger";
 import type { ESPNPlay, ESPNEvent, League } from "./espn";
 import type { MLBPlay } from "./mlb";
+import type { NHLPlay } from "./nhl";
 
 type Trigger = string;
 
@@ -106,6 +107,11 @@ const TRIGGER_LABEL: Record<string, string> = {
   home_run_allowed: "HR ALLOWED",
   strikeout_batting: "STRIKEOUT",
   strikeout_pitched: "STRIKEOUT",
+  // Role-aware NHL triggers. Labels reuse the flat "GOAL" wording because
+  // the description itself conveys scorer vs goalie context.
+  goal_scored: "GOAL",
+  goal_allowed: "GOAL ALLOWED",
+  assist: "ASSIST",
 };
 
 /**
@@ -340,18 +346,20 @@ export async function dispatchTeamResult(
       : "";
   const emoji = LEAGUE_EMOJI[league] ?? "🏅";
 
-  // Batched dedupe: fetch all (subscriptionId, gameId) rows for candidate subs
-  // in ONE query. team-result dedupe ignores eventDescription (there's only
-  // ever one team_result per sub per game), so we key on (sub, game) only.
+  // Batched dedupe: fetch all existing team_result alerts for candidate subs
+  // in ONE query. Dedupe key is (subscriptionId, gameId, playId="team_result")
+  // — reuses the partial unique index on alerts(subscriptionId, gameId, playId)
+  // so concurrent polls can't double-fire.
   const candidateIds = candidates.map((s) => s.id);
   const existingTeamAlerts = candidateIds.length > 0
     ? await db
-        .select({ subscriptionId: alerts.subscriptionId, gameId: alerts.gameId })
+        .select({ subscriptionId: alerts.subscriptionId })
         .from(alerts)
         .where(
           and(
             inArray(alerts.subscriptionId, candidateIds),
-            eq(alerts.gameId, event.id)
+            eq(alerts.gameId, event.id),
+            eq(alerts.playId, "team_result")
           )
         )
     : [];
@@ -370,17 +378,30 @@ export async function dispatchTeamResult(
     const suffix = scoreline ? ` ${scoreline} | Final` : " | Final";
     const message = `${emoji} ${label} — ${teamName} ${verb}.${suffix}`;
 
-    const [alertRow] = await db
-      .insert(alerts)
-      .values({
-        subscriptionId: sub.id,
-        userId: sub.userId,
-        message,
-        deliveryMethod: sub.deliveryMethod ?? "push",
+    let alertRow;
+    try {
+      [alertRow] = await db
+        .insert(alerts)
+        .values({
+          subscriptionId: sub.id,
+          userId: sub.userId,
+          message,
+          deliveryMethod: sub.deliveryMethod ?? "push",
+          gameId: event.id,
+          eventDescription: `team_result:${sub.trigger}`,
+          playId: "team_result",
+        })
+        .returning();
+    } catch (err) {
+      // Unique-constraint race: another concurrent cron run inserted the
+      // same (sub, game, playId="team_result") first. Skip silently.
+      log.info("alerts.team_result_dedupe_race", {
+        subId: sub.id,
         gameId: event.id,
-        eventDescription: `team_result:${sub.trigger}`,
-      })
-      .returning();
+        error: String(err),
+      });
+      continue;
+    }
 
     if (sub.deliveryMethod === "push" || sub.deliveryMethod === "both") {
       await sendPushToUser(sub.userId, message, {
@@ -392,6 +413,11 @@ export async function dispatchTeamResult(
       await sendSMSToUser(sub.userId, message);
     }
 
+    log.info("alerts.team_result_sent", {
+      subId: sub.id,
+      gameId: event.id,
+      trigger: sub.trigger,
+    });
     dispatched++;
   }
 
@@ -831,6 +857,339 @@ export async function matchAndAlertMLB(
       gameId: e.gameId,
       playId: e.playId ?? "",
     })))) {
+      log.info("alerts.dedupe_skip", {
+        subscriptionId: sub.id,
+        gameId,
+        playId: play.playId,
+      });
+      continue;
+    }
+
+    let alertRow;
+    try {
+      [alertRow] = await db
+        .insert(alerts)
+        .values({
+          subscriptionId: sub.id,
+          userId: sub.userId,
+          message: description,
+          deliveryMethod: sub.deliveryMethod ?? "push",
+          gameId,
+          eventDescription: play.description || play.eventType,
+          playId: play.playId ?? null,
+        })
+        .returning();
+    } catch (err) {
+      log.info("alerts.dedupe_race", {
+        subscriptionId: sub.id,
+        gameId,
+        playId: play.playId,
+        error: String(err),
+      });
+      continue;
+    }
+
+    if (sub.deliveryMethod === "push" || sub.deliveryMethod === "both") {
+      await sendPushToUser(sub.userId, description, {
+        subscriptionId: sub.id,
+        alertId: alertRow?.id,
+      });
+    }
+    if (sub.deliveryMethod === "sms" || sub.deliveryMethod === "both") {
+      await sendSMSToUser(sub.userId, description);
+    }
+    dispatched++;
+  }
+
+  return dispatched;
+}
+
+// ----------------------- NHL API provider path ---------------------------
+//
+// NHL play-by-play (api-web.nhle.com) is role-specific: a goal carries a
+// scorer, up-to-two assisters, AND the goalie-in-net whose line got beat.
+// That's exactly what's needed to fire "goal_allowed" on a goalie sub
+// without fighting text heuristics the way the ESPN path would.
+
+/**
+ * Role tag on a parsed NHL entry so the matcher can enforce
+ * trigger-vs-role consistency (e.g. `goal_allowed` only matches
+ * `role === "goalie"` entries).
+ */
+type NHLRole = "scorer" | "assister" | "goalie" | "shooter" | "hitter" | "hittee";
+
+/**
+ * Role-aware NHL triggers and the role of player entity that they target.
+ * Legacy ambiguous `goal` is kept as a scorer-side alias for back-compat.
+ */
+const NHL_TRIGGER_ROLE: Record<string, NHLRole> = {
+  goal_scored: "scorer",
+  goal_allowed: "goalie",
+  assist: "assister",
+  goal: "scorer", // legacy: existing subs created before role-aware triggers
+  shot_on_goal: "shooter",
+  hit: "hitter",
+};
+
+/**
+ * A parsed NHL play entry, one per (role, entity) pair. A single goal
+ * with two assisters produces up to four entries: scorer, assister1,
+ * assister2, and the goalie who let it in.
+ */
+export interface ParsedNHLEntry extends ParsedPlay {
+  role: NHLRole;
+}
+
+/**
+ * Normalize NHL `typeDescKey` to our snake_case trigger space.
+ * "shot-on-goal" → "shot_on_goal", "blocked-shot" → "blocked_shot", etc.
+ */
+function nhlEventKey(typeDescKey: string): string {
+  return typeDescKey.trim().toLowerCase().replace(/-/g, "_");
+}
+
+/**
+ * Pure function: turn a normalized NHL play into zero, one, or more
+ * parsed entries — one per (role, entity) pair.
+ *
+ * Goals fan out into scorer + each assist + goalie-in-net.
+ * Shots/hits/etc. are single-role and produce one entry.
+ */
+export function parseNHLPlay(play: NHLPlay, event?: ESPNEvent): ParsedNHLEntry[] {
+  const entries: ParsedNHLEntry[] = [];
+  const key = nhlEventKey(play.eventType);
+  if (!key) return entries;
+
+  const desc = play.description || key.replace(/_/g, " ");
+
+  if (key === "goal") {
+    if (play.scorerId) {
+      entries.push({
+        role: "scorer",
+        entityId: play.scorerId,
+        entityIds: [play.scorerId],
+        triggers: ["goal_scored", "goal"],
+        description: formatAlertMessage("nhl", "goal_scored", desc, event),
+      });
+    }
+    if (play.assist1Id) {
+      entries.push({
+        role: "assister",
+        entityId: play.assist1Id,
+        entityIds: [play.assist1Id],
+        triggers: ["assist"],
+        description: formatAlertMessage("nhl", "assist", desc, event),
+      });
+    }
+    if (play.assist2Id) {
+      entries.push({
+        role: "assister",
+        entityId: play.assist2Id,
+        entityIds: [play.assist2Id],
+        triggers: ["assist"],
+        description: formatAlertMessage("nhl", "assist", desc, event),
+      });
+    }
+    if (play.goalieInNetId) {
+      entries.push({
+        role: "goalie",
+        entityId: play.goalieInNetId,
+        entityIds: [play.goalieInNetId],
+        triggers: ["goal_allowed"],
+        description: formatAlertMessage("nhl", "goal_allowed", desc, event),
+      });
+    }
+    return entries;
+  }
+
+  if (key === "shot_on_goal") {
+    if (play.shooterId) {
+      entries.push({
+        role: "shooter",
+        entityId: play.shooterId,
+        entityIds: [play.shooterId],
+        triggers: ["shot_on_goal"],
+        description: formatAlertMessage("nhl", "shot_on_goal", desc, event),
+      });
+    }
+    return entries;
+  }
+
+  if (key === "hit") {
+    if (play.hitterId) {
+      entries.push({
+        role: "hitter",
+        entityId: play.hitterId,
+        entityIds: [play.hitterId],
+        triggers: ["hit"],
+        description: formatAlertMessage("nhl", "hit", desc, event),
+      });
+    }
+    return entries;
+  }
+
+  if (key === "blocked_shot") {
+    // On a blocked shot, `hittingPlayerId` would be empty; the NHL feed
+    // puts the blocker in `details.playerId` via the RawPlay shape. We
+    // already fallback-capture shooterId as the one who took the shot;
+    // prefer that for single-role attribution.
+    const who = play.shooterId ?? play.hitterId;
+    if (who) {
+      entries.push({
+        role: "shooter",
+        entityId: who,
+        entityIds: [who],
+        triggers: ["blocked_shot"],
+        description: formatAlertMessage("nhl", "blocked_shot", desc, event),
+      });
+    }
+    return entries;
+  }
+
+  if (key === "takeaway" || key === "giveaway") {
+    const who = play.shooterId ?? play.scorerId ?? play.hitterId;
+    if (who) {
+      entries.push({
+        role: "shooter",
+        entityId: who,
+        entityIds: [who],
+        triggers: [key],
+        description: formatAlertMessage("nhl", key, desc, event),
+      });
+    }
+    return entries;
+  }
+
+  if (key === "penalty") {
+    const who = play.hitterId ?? play.shooterId ?? play.scorerId;
+    if (who) {
+      entries.push({
+        role: "hitter",
+        entityId: who,
+        entityIds: [who],
+        triggers: ["penalty"],
+        description: formatAlertMessage("nhl", "penalty", desc, event),
+      });
+    }
+    return entries;
+  }
+
+  return entries;
+}
+
+/**
+ * Pure predicate: does an NHL `ParsedNHLEntry` match a subscription?
+ * Compares against `externalPlayerId` (the NHL api-web numeric id) rather
+ * than ESPN's id. Enforces trigger-role consistency so a `goal_allowed`
+ * sub on a scorer entry doesn't fire.
+ */
+export function matchesNHLEntry(
+  entry: ParsedNHLEntry,
+  sub: {
+    externalPlayerId: string | null;
+    trigger: string;
+    active: boolean;
+    league: string;
+  }
+): boolean {
+  if (!sub.active) return false;
+  if (sub.league !== "nhl") return false;
+  if (!sub.externalPlayerId) return false;
+  if (!entry.triggers.includes(sub.trigger)) return false;
+  if (entry.entityId !== sub.externalPlayerId) return false;
+
+  const expectedRole = NHL_TRIGGER_ROLE[sub.trigger];
+  if (expectedRole && expectedRole !== entry.role) return false;
+  return true;
+}
+
+/**
+ * Match an NHL play (from api-web.nhle.com) against active NHL
+ * subscriptions and dispatch alerts. Mirrors `matchAndAlertMLB`:
+ * resolves role-specific player ids, compares against
+ * `subscriptions.externalPlayerId`, dedupes via the alerts table.
+ */
+export async function matchAndAlertNHL(
+  play: NHLPlay,
+  gameId: string,
+  event?: ESPNEvent
+): Promise<number> {
+  const entries = parseNHLPlay(play, event);
+  if (entries.length === 0) return 0;
+
+  const allNhlIds = Array.from(
+    new Set(entries.map((e) => e.entityId).filter((x): x is string => !!x))
+  );
+  const allTriggers = Array.from(new Set(entries.flatMap((e) => e.triggers)));
+
+  if (allNhlIds.length === 0 || allTriggers.length === 0) return 0;
+
+  const matchingSubs = await db
+    .select()
+    .from(subscriptions)
+    .where(
+      and(
+        eq(subscriptions.league, "nhl"),
+        inArray(subscriptions.externalPlayerId, allNhlIds),
+        inArray(subscriptions.trigger, allTriggers),
+        eq(subscriptions.active, true)
+      )
+    );
+
+  if (matchingSubs.length === 0) return 0;
+
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const matchingSubIds = matchingSubs.map((s) => s.id);
+  const existing =
+    matchingSubIds.length > 0 && play.playId
+      ? await db
+          .select({
+            subscriptionId: alerts.subscriptionId,
+            gameId: alerts.gameId,
+            playId: alerts.playId,
+          })
+          .from(alerts)
+          .where(
+            and(
+              inArray(alerts.subscriptionId, matchingSubIds),
+              eq(alerts.gameId, gameId),
+              eq(alerts.playId, play.playId),
+              gte(alerts.sentAt, twentyFourHoursAgo)
+            )
+          )
+      : [];
+
+  let dispatched = 0;
+
+  for (const sub of matchingSubs) {
+    const entry = entries.find((e) =>
+      matchesNHLEntry(e, {
+        externalPlayerId: sub.externalPlayerId,
+        trigger: sub.trigger,
+        active: sub.active,
+        league: sub.league,
+      })
+    );
+    if (!entry) continue;
+
+    const description = entry.description;
+
+    const candidate: AlertLike = {
+      subscriptionId: sub.id,
+      gameId,
+      playId: play.playId ?? "",
+    };
+    if (
+      play.playId &&
+      isDuplicateAlert(
+        candidate,
+        existing.map((e) => ({
+          subscriptionId: e.subscriptionId,
+          gameId: e.gameId,
+          playId: e.playId ?? "",
+        }))
+      )
+    ) {
       log.info("alerts.dedupe_skip", {
         subscriptionId: sub.id,
         gameId,

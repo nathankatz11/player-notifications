@@ -25,6 +25,11 @@ export const users = pgTable("users", {
   phone: text("phone"),
   xHandle: text("x_handle"),
   apnsToken: text("apns_token"),
+  // Stable Apple user ID (the `sub` claim from a verified Sign in with Apple
+  // identity token). Nullable so that legacy test users created via
+  // `/api/register` (before SIWA was wired up) remain functional. New users
+  // created through `/api/auth/apple` always populate this.
+  appleUserId: text("apple_user_id").unique(),
   plan: planEnum("plan").notNull().default("free"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

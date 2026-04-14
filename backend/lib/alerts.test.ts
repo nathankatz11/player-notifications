@@ -357,6 +357,343 @@ describe("parsePlay", () => {
   });
 });
 
+// ---------- parseMLBPlay + matchesMLBEntry (role-aware MLB triggers) -------
+
+describe("parseMLBPlay", () => {
+  function makeMLBPlay(overrides: Partial<MLBPlay> = {}): MLBPlay {
+    return {
+      playId: "12.3",
+      gameId: "gp-1",
+      eventType: "home_run",
+      batterId: "batter-1",
+      pitcherId: "pitcher-1",
+      runnerId: null,
+      description: "Smith homers (3) on a fly ball to center field.",
+      inning: 3,
+      halfInning: "top",
+      ...overrides,
+    };
+  }
+
+  it("a home run produces two entries: batter (home_run_hit + legacy home_run) and pitcher (home_run_allowed)", () => {
+    const entries = parseMLBPlay(makeMLBPlay());
+    expect(entries).toHaveLength(2);
+
+    const batter = entries.find((e) => e.role === "batter");
+    expect(batter).toBeDefined();
+    expect(batter!.entityId).toBe("batter-1");
+    expect(batter!.triggers).toEqual(
+      expect.arrayContaining(["home_run_hit", "home_run"])
+    );
+
+    const pitcher = entries.find((e) => e.role === "pitcher");
+    expect(pitcher).toBeDefined();
+    expect(pitcher!.entityId).toBe("pitcher-1");
+    expect(pitcher!.triggers).toEqual(["home_run_allowed"]);
+    // Pitcher entry should NOT carry the batter-side triggers.
+    expect(pitcher!.triggers).not.toContain("home_run_hit");
+    expect(pitcher!.triggers).not.toContain("home_run");
+  });
+
+  it("a strikeout produces a batter entry (strikeout_batting + legacy strikeout) and a pitcher entry (strikeout_pitched)", () => {
+    const entries = parseMLBPlay(
+      makeMLBPlay({ eventType: "strikeout", description: "Smith strikes out swinging." })
+    );
+    expect(entries).toHaveLength(2);
+    const batter = entries.find((e) => e.role === "batter");
+    expect(batter!.triggers).toEqual(
+      expect.arrayContaining(["strikeout_batting", "strikeout"])
+    );
+    const pitcher = entries.find((e) => e.role === "pitcher");
+    expect(pitcher!.triggers).toEqual(["strikeout_pitched"]);
+  });
+
+  it("a walk produces a batter-only entry (legacy walk trigger)", () => {
+    const entries = parseMLBPlay(
+      makeMLBPlay({ eventType: "walk", description: "Smith walks." })
+    );
+    expect(entries).toHaveLength(1);
+    expect(entries[0].role).toBe("batter");
+    expect(entries[0].triggers).toEqual(["walk"]);
+  });
+
+  it("a stolen base produces a runner-only entry", () => {
+    const entries = parseMLBPlay(
+      makeMLBPlay({
+        eventType: "stolen_base_2b",
+        runnerId: "runner-9",
+        description: "Smith steals 2nd.",
+      })
+    );
+    expect(entries).toHaveLength(1);
+    expect(entries[0].role).toBe("runner");
+    expect(entries[0].entityId).toBe("runner-9");
+    expect(entries[0].triggers).toEqual(["stolen_base"]);
+  });
+
+  it("omits the batter entry when the play has no batterId (defensive)", () => {
+    const entries = parseMLBPlay(
+      makeMLBPlay({ eventType: "home_run", batterId: null })
+    );
+    // Only the pitcher entry is produced.
+    expect(entries).toHaveLength(1);
+    expect(entries[0].role).toBe("pitcher");
+  });
+
+  it("returns [] for an unrecognized event", () => {
+    const entries = parseMLBPlay(makeMLBPlay({ eventType: "field_out" }));
+    expect(entries).toEqual([]);
+  });
+});
+
+describe("matchesMLBEntry (role-aware matching)", () => {
+  function hrPlay(): MLBPlay {
+    return {
+      playId: "12.3",
+      gameId: "gp-1",
+      eventType: "home_run",
+      batterId: "batter-42",
+      pitcherId: "pitcher-7",
+      runnerId: null,
+      description: "Jones homers.",
+      inning: 1,
+      halfInning: "top",
+    };
+  }
+
+  it("pitcher sub with home_run_allowed fires when the pitcher's id matches the pitcher on the HR", () => {
+    const entries = parseMLBPlay(hrPlay());
+    const pitcher = entries.find((e) => e.role === "pitcher")!;
+    expect(
+      matchesMLBEntry(pitcher, {
+        externalPlayerId: "pitcher-7",
+        trigger: "home_run_allowed",
+        active: true,
+        league: "mlb",
+      })
+    ).toBe(true);
+  });
+
+  it("pitcher sub with home_run_allowed does NOT fire for a different pitcher", () => {
+    const entries = parseMLBPlay(hrPlay());
+    const pitcher = entries.find((e) => e.role === "pitcher")!;
+    expect(
+      matchesMLBEntry(pitcher, {
+        externalPlayerId: "pitcher-999",
+        trigger: "home_run_allowed",
+        active: true,
+        league: "mlb",
+      })
+    ).toBe(false);
+  });
+
+  it("batter sub with home_run_hit fires, but does NOT fire for home_run_allowed", () => {
+    const entries = parseMLBPlay(hrPlay());
+    const batter = entries.find((e) => e.role === "batter")!;
+    expect(
+      matchesMLBEntry(batter, {
+        externalPlayerId: "batter-42",
+        trigger: "home_run_hit",
+        active: true,
+        league: "mlb",
+      })
+    ).toBe(true);
+    // home_run_allowed is a pitcher-role trigger — should NOT match a batter entry
+    expect(
+      matchesMLBEntry(batter, {
+        externalPlayerId: "batter-42",
+        trigger: "home_run_allowed",
+        active: true,
+        league: "mlb",
+      })
+    ).toBe(false);
+  });
+
+  it("legacy home_run sub still fires for a batter HR (backward compat)", () => {
+    const entries = parseMLBPlay(hrPlay());
+    const batter = entries.find((e) => e.role === "batter")!;
+    expect(
+      matchesMLBEntry(batter, {
+        externalPlayerId: "batter-42",
+        trigger: "home_run",
+        active: true,
+        league: "mlb",
+      })
+    ).toBe(true);
+  });
+
+  it("strikeout_pitched fires for the pitcher; strikeout_batting fires for the batter", () => {
+    const kPlay: MLBPlay = {
+      playId: "5.1",
+      gameId: "gp-1",
+      eventType: "strikeout",
+      batterId: "batter-11",
+      pitcherId: "pitcher-22",
+      runnerId: null,
+      description: "Jones strikes out.",
+      inning: 2,
+      halfInning: "bottom",
+    };
+    const entries = parseMLBPlay(kPlay);
+    const batter = entries.find((e) => e.role === "batter")!;
+    const pitcher = entries.find((e) => e.role === "pitcher")!;
+
+    expect(
+      matchesMLBEntry(pitcher, {
+        externalPlayerId: "pitcher-22",
+        trigger: "strikeout_pitched",
+        active: true,
+        league: "mlb",
+      })
+    ).toBe(true);
+
+    expect(
+      matchesMLBEntry(batter, {
+        externalPlayerId: "batter-11",
+        trigger: "strikeout_batting",
+        active: true,
+        league: "mlb",
+      })
+    ).toBe(true);
+
+    // Cross-role mismatch: pitcher sub's strikeout_pitched shouldn't match batter entry
+    expect(
+      matchesMLBEntry(batter, {
+        externalPlayerId: "batter-11",
+        trigger: "strikeout_pitched",
+        active: true,
+        league: "mlb",
+      })
+    ).toBe(false);
+  });
+
+  it("does NOT fire for non-MLB league subs", () => {
+    const entries = parseMLBPlay(hrPlay());
+    const batter = entries.find((e) => e.role === "batter")!;
+    expect(
+      matchesMLBEntry(batter, {
+        externalPlayerId: "batter-42",
+        trigger: "home_run",
+        active: true,
+        league: "nba",
+      })
+    ).toBe(false);
+  });
+
+  it("does NOT fire when externalPlayerId is null (unresolved MLB mapping)", () => {
+    const entries = parseMLBPlay(hrPlay());
+    const batter = entries.find((e) => e.role === "batter")!;
+    expect(
+      matchesMLBEntry(batter, {
+        externalPlayerId: null,
+        trigger: "home_run",
+        active: true,
+        league: "mlb",
+      })
+    ).toBe(false);
+  });
+
+  it("does NOT fire for inactive subscriptions", () => {
+    const entries = parseMLBPlay(hrPlay());
+    const batter = entries.find((e) => e.role === "batter")!;
+    expect(
+      matchesMLBEntry(batter, {
+        externalPlayerId: "batter-42",
+        trigger: "home_run_hit",
+        active: false,
+        league: "mlb",
+      })
+    ).toBe(false);
+  });
+});
+
+// ---------- parsePlayByPlayResponse (MLB Stats API shape) ------------------
+
+describe("parsePlayByPlayResponse", () => {
+  it("converts a realistic MLB Stats API response into MLBPlay[] with batter + pitcher ids", () => {
+    const raw = {
+      allPlays: [
+        {
+          result: {
+            type: "atBat",
+            event: "Home Run",
+            description:
+              "Pete Alonso homers (28) on a fly ball to left center field.",
+          },
+          about: { inning: 3, halfInning: "top", atBatIndex: 12 },
+          playEvents: [{ index: 0 }, { index: 1 }, { index: 2 }],
+          matchup: { batter: { id: 624413 }, pitcher: { id: 660271 } },
+          runners: [],
+        },
+        {
+          result: {
+            type: "atBat",
+            event: "Strikeout",
+            description: "McNeil strikes out swinging.",
+          },
+          about: { inning: 3, halfInning: "top", atBatIndex: 13 },
+          playEvents: [{ index: 0 }],
+          matchup: { batter: { id: 643446 }, pitcher: { id: 660271 } },
+          runners: [],
+        },
+      ],
+    };
+    const plays = parsePlayByPlayResponse(raw, "gp-777");
+    expect(plays).toHaveLength(2);
+
+    const hr = plays[0];
+    expect(hr.eventType).toBe("home_run");
+    expect(hr.batterId).toBe("624413");
+    expect(hr.pitcherId).toBe("660271");
+    expect(hr.gameId).toBe("gp-777");
+    expect(hr.halfInning).toBe("top");
+    expect(hr.inning).toBe(3);
+    // composite play id stitched from atBatIndex + last playEvent index
+    expect(hr.playId).toBe("12.2");
+
+    const k = plays[1];
+    expect(k.eventType).toBe("strikeout");
+    expect(k.batterId).toBe("643446");
+  });
+
+  it("surfaces stolen-base runner events as their own synthetic play", () => {
+    const raw = {
+      allPlays: [
+        {
+          result: {
+            type: "atBat",
+            event: "Walk",
+            description: "Smith walks.",
+          },
+          about: { inning: 4, halfInning: "bottom", atBatIndex: 20 },
+          playEvents: [{ index: 0 }],
+          matchup: { batter: { id: 111 }, pitcher: { id: 222 } },
+          runners: [
+            {
+              details: {
+                runner: { id: 333 },
+                event: "Stolen Base 2B",
+              },
+              movement: { start: "1B", end: "2B" },
+            },
+          ],
+        },
+      ],
+    };
+    const plays = parsePlayByPlayResponse(raw, "gp-1");
+    // Expect the at-bat "walk" PLUS a synthetic stolen_base_2b row.
+    const sb = plays.find((p) => p.eventType.startsWith("stolen_base"));
+    expect(sb).toBeDefined();
+    expect(sb!.runnerId).toBe("333");
+    expect(sb!.halfInning).toBe("bottom");
+  });
+
+  it("gracefully returns [] for an empty allPlays payload", () => {
+    expect(parsePlayByPlayResponse({ allPlays: [] }, "gp-1")).toEqual([]);
+    expect(parsePlayByPlayResponse({}, "gp-1")).toEqual([]);
+  });
+});
+
 // ---------- integration-ish: parsePlay ∘ matchesSubscription ---------------
 
 describe("parsePlay + matchesSubscription together", () => {
