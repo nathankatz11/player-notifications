@@ -208,7 +208,15 @@ async function processGame(league: League, event: ESPNEvent): Promise<number> {
     // Firehose: fan every new play out to any user with
     // `firehose_until > now`. Runs after normal matching so real subs still
     // take priority in logs and the firehose recipient always gets a push.
-    await dispatchFirehose(newPlays, gameId, league, event);
+    const firehoseSent = await dispatchFirehose(newPlays, gameId, league, event);
+    if (firehoseSent > 0) {
+      log.info("cron.poll.firehose_sent", {
+        gameId,
+        league,
+        newPlays: newPlays.length,
+        sent: firehoseSent,
+      });
+    }
   }
 
   // Fire team_win / team_loss on transition to final. Dedupe lives inside

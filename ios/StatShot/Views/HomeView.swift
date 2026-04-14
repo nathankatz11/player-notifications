@@ -370,16 +370,21 @@ struct HomeView: View {
                 }
             }
         )
+        // Clear only when we genuinely have no one to follow. Transient
+        // empty state during reload is covered by the sub-loader; don't
+        // wipe the strip preemptively.
         guard !leagues.isEmpty, !followedTeamIds.isEmpty else {
             filteredGames = []
             return
         }
 
         var collected: [LeagueGame] = []
+        var anySucceeded = false
         for league in leagues {
             do {
                 let data = try await APIService.shared.fetchScores(league: league.rawValue)
                 let decoded = try JSONDecoder().decode(ScoresResponse.self, from: data)
+                anySucceeded = true
                 for game in decoded.games {
                     let ids = game.competitors?.compactMap(\.teamId) ?? []
                     if ids.contains(where: followedTeamIds.contains) {
@@ -390,7 +395,9 @@ struct HomeView: View {
                 // Skip this league on failure — don't block the whole feed.
             }
         }
-        // Live games first, then upcoming, then final.
+        // If every league's request failed, keep the previous list rather
+        // than blanking the strip on a transient network flake.
+        guard anySucceeded else { return }
         filteredGames = collected.sorted { a, b in
             rank(a.game.status) < rank(b.game.status)
         }
