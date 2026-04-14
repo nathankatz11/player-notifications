@@ -88,9 +88,14 @@ struct HomeView: View {
     // MARK: - Favorites Strip
 
     private var favoritesStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        // Active first, paused at the end (Instagram-stories style).
+        let sorted = viewModel.subscriptions.sorted { lhs, rhs in
+            if lhs.active != rhs.active { return lhs.active }
+            return lhs.createdAt > rhs.createdAt
+        }
+        return ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 14) {
-                ForEach(viewModel.subscriptions) { subscription in
+                ForEach(sorted) { subscription in
                     FavoriteChip(subscription: subscription)
                         .onTapGesture {
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -466,16 +471,7 @@ private struct ScoreTile: View {
     }
 
     private var status: String {
-        switch game.status {
-        case "in":
-            if let clock = game.clock, !clock.isEmpty, let p = game.period {
-                return "\(clock) · P\(p)"
-            }
-            return "Live"
-        case "post": return "Final"
-        case "pre":  return "Upcoming"
-        default:     return game.status.capitalized
-        }
+        game.statusText(for: league)
     }
 
     private var statusColor: Color {

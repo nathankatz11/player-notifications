@@ -32,12 +32,28 @@ struct LiveGame: Codable, Identifiable {
     }
 
     var statusText: String {
+        statusText(for: nil)
+    }
+
+    /// League-aware status string. Baseball has no game clock, so we
+    /// render "Top 5" / "Bot 5" instead of the wall-clock time ESPN
+    /// returns in `displayClock`. Soccer uses minutes elapsed.
+    func statusText(for league: League?) -> String {
         switch status {
         case "in":
-            if let clock, !clock.isEmpty, let period {
-                return "\(clock) - P\(period)"
+            switch league {
+            case .mlb:
+                if let period { return baseballHalfInning(period: period) }
+                return "Live"
+            case .mls:
+                if let clock, !clock.isEmpty { return clock }
+                return "Live"
+            default:
+                if let clock, !clock.isEmpty, let period {
+                    return "Q\(period) \(clock)"
+                }
+                return "Live"
             }
-            return "Live"
         case "post":
             return "Final"
         case "pre":
@@ -45,6 +61,11 @@ struct LiveGame: Codable, Identifiable {
         default:
             return status.capitalized
         }
+    }
+
+    private func baseballHalfInning(period: Int) -> String {
+        let inning = (period + 1) / 2
+        return period % 2 == 1 ? "Top \(inning)" : "Bot \(inning)"
     }
 
     var isLive: Bool {
@@ -133,7 +154,7 @@ struct GameDetailSheet: View {
     }
 
     private var statusBadge: some View {
-        Text(game.statusText)
+        Text(game.statusText(for: league))
             .font(.headline)
             .foregroundStyle(game.isLive ? .red : .secondary)
             .padding(.horizontal, 12)

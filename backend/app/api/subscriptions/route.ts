@@ -20,7 +20,10 @@ const createSubscriptionSchema = z.object({
 
 /**
  * GET /api/subscriptions?userId=xxx
- * List active subscriptions for a user.
+ * List all subscriptions for a user (active + paused). Paused subs are
+ * still shown in the UI in a dimmed state so users can resume them; the
+ * matching engine in alerts.ts already filters by active=true so paused
+ * subs don't fire pushes.
  */
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");
@@ -31,7 +34,7 @@ export async function GET(req: NextRequest) {
   const subs = await db
     .select()
     .from(subscriptions)
-    .where(and(eq(subscriptions.userId, userId), eq(subscriptions.active, true)));
+    .where(eq(subscriptions.userId, userId));
 
   return NextResponse.json({ subscriptions: subs });
 }
