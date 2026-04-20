@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 const registerSchema = z.object({
@@ -30,6 +30,14 @@ export async function POST(req: NextRequest) {
     );
   }
   const { email, apnsToken } = result.data;
+
+  // Prevent duplicate pushes: if another user row already holds this APNs
+  // token (e.g. a leftover test@statshot.app row from before SIWA), null it
+  // out so only the current user receives pushes going forward.
+  await db
+    .update(users)
+    .set({ apnsToken: null })
+    .where(and(eq(users.apnsToken, apnsToken), ne(users.email, email)));
 
   // Upsert user by email
   const existing = await db.select().from(users).where(eq(users.email, email));

@@ -7,6 +7,7 @@ struct HomeView: View {
     @State private var alerts: [AlertItem] = []
     @State private var filteredGames: [LeagueGame] = []
     @State private var isLoadingFeed = false
+    @State private var selectedLeagueFilter: League?
     @State private var selectedGame: LeagueGame?
     @State private var showingArchived = false
     /// Session-scoped dismissal for the denied-notifications banner. Resets
@@ -153,49 +154,77 @@ struct HomeView: View {
             .sorted { $0.createdAt > $1.createdAt }
     }
 
-    private var favoritesStrip: some View {
-        // Live first, then active non-live, then the 3 most-recent paused.
-        let active = viewModel.subscriptions
-            .filter { $0.active }
-            .sorted { lhs, rhs in
-                let lhsLive = isLive(lhs)
-                let rhsLive = isLive(rhs)
-                if lhsLive != rhsLive { return lhsLive }
-                return lhs.createdAt > rhs.createdAt
+    /// Groups subscriptions by entity so the strip shows one circle per
+    /// player/team with a badge count, instead of one per trigger.
+    private var groupedEntities: [GroupedEntity] {
+        let grouped = Dictionary(grouping: viewModel.subscriptions, by: \.entityId)
+        return grouped.values
+            .compactMap { subs -> GroupedEntity? in
+                guard let first = subs.first else { return nil }
+                return GroupedEntity(
+                    entityId: first.entityId,
+                    entityName: first.entityName,
+                    type: first.type,
+                    league: first.league,
+                    photoUrl: first.photoUrl,
+                    subscriptions: subs
+                )
             }
-        let paused = archivedSubscriptions
-        let pausedHead = Array(paused.prefix(Self.pausedStripLimit))
-        let overflow = max(0, paused.count - Self.pausedStripLimit)
-        let displayed = active + pausedHead
+            .sorted { lhs, rhs in
+                let lLive = lhs.subscriptions.contains { isLive($0) }
+                let rLive = rhs.subscriptions.contains { isLive($0) }
+                if lLive != rLive { return lLive }
+                let lActive = lhs.hasActive
+                let rActive = rhs.hasActive
+                if lActive != rActive { return lActive }
+                return lhs.subscriptions[0].createdAt > rhs.subscriptions[0].createdAt
+            }
+    }
+
+    private var favoritesStrip: some View {
+        let groups = groupedEntities
+        let activeGroups = groups.filter(\.hasActive)
+        let pausedGroups = groups.filter { !$0.hasActive }
+        let pausedHead = Array(pausedGroups.prefix(Self.pausedStripLimit))
+        let overflow = max(0, pausedGroups.count - Self.pausedStripLimit)
+        let displayed = activeGroups + pausedHead
 
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 14) {
-                ForEach(displayed) { subscription in
-                    FavoriteChip(subscription: subscription, isLive: isLive(subscription))
-                        .onTapGesture {
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            selectedSubscription = subscription
-                        }
-                        .contextMenu {
+                ForEach(displayed) { group in
+                    let live = group.subscriptions.contains { isLive($0) }
+                    FavoriteChip(
+                        subscription: group.subscriptions.first(where: \.active) ?? group.subscriptions[0],
+                        isLive: live,
+                        triggerCount: group.activeCount
+                    )
+                    .onTapGesture {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        selectedSubscription = group.subscriptions.first(where: \.active) ?? group.subscriptions[0]
+                    }
+                    .contextMenu {
+                        ForEach(group.subscriptions) { sub in
                             Button {
-                                Task {
-                                    await viewModel.toggleSubscription(subscription)
-                                }
+                                selectedSubscription = sub
                             } label: {
                                 Label(
-                                    subscription.active ? "Pause" : "Resume",
-                                    systemImage: subscription.active ? "pause.circle" : "play.circle"
+                                    "\(sub.trigger.displayName) (\(sub.active ? "Active" : "Paused"))",
+                                    systemImage: sub.active ? "bell.fill" : "bell.slash"
                                 )
                             }
-                            Button(role: .destructive) {
-                                Task {
-                                    await viewModel.deleteSubscription(subscription)
-                                    UINotificationFeedbackGenerator().notificationOccurred(.success)
-                                }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
                         }
+                        Divider()
+                        Button(role: .destructive) {
+                            Task {
+                                for sub in group.subscriptions {
+                                    await viewModel.deleteSubscription(sub)
+                                }
+                                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                            }
+                        } label: {
+                            Label("Delete All", systemImage: "trash")
+                        }
+                    }
                 }
                 if overflow > 0 {
                     MoreChip(count: overflow)
@@ -229,6 +258,20 @@ struct HomeView: View {
 
     // MARK: - Alerts Feed
 
+    /// Leagues the user has at least one subscription in, for the filter pills.
+    private var subscribedLeagues: [League] {
+        let set = Set(viewModel.subscriptions.map(\.league))
+        return League.allCases.filter { set.contains($0) }
+    }
+
+    private var filteredAlerts: [AlertItem] {
+        guard let league = selectedLeagueFilter else { return alerts }
+        return alerts.filter { alert in
+            guard let sub = subscription(for: alert) else { return false }
+            return sub.league == league
+        }
+    }
+
     @ViewBuilder
     private var alertsFeed: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -244,15 +287,34 @@ struct HomeView: View {
             }
             .padding(.horizontal, 16)
 
+            // League filter pills — only shown if user follows 2+ leagues
+            if subscribedLeagues.count > 1 {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        leagueFilterPill(label: "All", league: nil)
+                        ForEach(subscribedLeagues) { league in
+                            leagueFilterPill(label: league.shortName, league: league)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+            }
+
             if isLoadingFeed && alerts.isEmpty {
                 ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+            } else if filteredAlerts.isEmpty && !alerts.isEmpty {
+                Text("No alerts for this league yet.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
             } else if alerts.isEmpty {
                 emptyAlertsHint
             } else {
                 LazyVStack(spacing: 8) {
-                    ForEach(alerts) { alert in
+                    ForEach(filteredAlerts) { alert in
                         AlertFeedCard(alert: alert, subscription: subscription(for: alert))
                             .onTapGesture {
                                 guard let sub = subscription(for: alert) else { return }
@@ -264,6 +326,29 @@ struct HomeView: View {
                 .padding(.horizontal, 16)
             }
         }
+    }
+
+    private func leagueFilterPill(label: String, league: League?) -> some View {
+        let isOn = selectedLeagueFilter == league
+        let color = league?.color ?? .accentColor
+        return Button {
+            UISelectionFeedbackGenerator().selectionChanged()
+            selectedLeagueFilter = league
+        } label: {
+            Text(label)
+                .font(.caption.bold())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    isOn ? color.opacity(0.25) : Color.secondary.opacity(0.10),
+                    in: Capsule()
+                )
+                .overlay(
+                    isOn ? Capsule().strokeBorder(color, lineWidth: 1.5) : nil
+                )
+                .foregroundStyle(isOn ? color : .secondary)
+        }
+        .buttonStyle(.plain)
     }
 
     private var emptyAlertsHint: some View {
@@ -445,9 +530,24 @@ private struct LeagueGame: Identifiable {
 
 // MARK: - Favorite Chip
 
+/// Groups subscriptions by entity (one circle per player/team in the strip).
+private struct GroupedEntity: Identifiable {
+    let entityId: String
+    let entityName: String
+    let type: SubscriptionType
+    let league: League
+    let photoUrl: String?
+    let subscriptions: [Subscription]
+
+    var id: String { entityId }
+    var hasActive: Bool { subscriptions.contains(where: \.active) }
+    var activeCount: Int { subscriptions.filter(\.active).count }
+}
+
 private struct FavoriteChip: View {
     let subscription: Subscription
     let isLive: Bool
+    var triggerCount: Int = 1
 
     @State private var pulse = false
 
@@ -485,6 +585,15 @@ private struct FavoriteChip: View {
                             Capsule().strokeBorder(.black, lineWidth: 1.5)
                         )
                         .offset(x: 22, y: -22)
+                }
+                if triggerCount > 1 {
+                    Text("\(triggerCount)")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .frame(width: 20, height: 20)
+                        .background(leagueColor, in: Circle())
+                        .overlay(Circle().strokeBorder(.black, lineWidth: 1.5))
+                        .offset(x: -22, y: -22)
                 }
             }
             Text(shortName(subscription.entityName))

@@ -245,6 +245,8 @@ describe("POST /api/register", () => {
   });
 
   it("updates apnsToken when user already exists (upsert branch)", async () => {
+    // 0) update to clear stale APNs token from other users → resolves
+    dbResultQueue.push([]);
     // 1) select().from(users).where() → existing user
     dbResultQueue.push([{ id: "user-uuid", email: "a@b.com" }]);
     // 2) update().set().where() → resolves (value unused by handler)
@@ -261,6 +263,8 @@ describe("POST /api/register", () => {
   });
 
   it("inserts a new user when email is not found (insert branch)", async () => {
+    // 0) update to clear stale APNs token from other users → resolves
+    dbResultQueue.push([]);
     // 1) select().from(users).where() → no existing user
     dbResultQueue.push([]);
     // 2) insert().values().returning() → newly created row
