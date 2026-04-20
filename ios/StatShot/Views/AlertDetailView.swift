@@ -26,6 +26,7 @@ final class AlertDetailViewModel {
 
 struct AlertDetailView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AuthViewModel.self) private var authViewModel
     @State private var viewModel = AlertDetailViewModel()
 
     @State var subscription: Subscription
@@ -37,6 +38,18 @@ struct AlertDetailView: View {
     var onDeleted: (() -> Void)?
 
     private var leagueColor: Color { subscription.league.color }
+
+    /// Only show SMS and Tag on X if the user has configured phone / xHandle
+    /// in Settings. Push is always available.
+    private var availableDeliveryMethods: [DeliveryMethod] {
+        DeliveryMethod.allCases.filter { method in
+            switch method {
+            case .push: return true
+            case .sms: return !authViewModel.phone.isEmpty
+            case .tweet: return !authViewModel.xHandle.isEmpty
+            }
+        }
+    }
 
     init(subscription: Subscription, onDeleted: (() -> Void)? = nil) {
         self._subscription = State(initialValue: subscription)
@@ -341,7 +354,7 @@ struct AlertDetailView: View {
                     .padding(.horizontal, 4)
 
                 HStack(spacing: 10) {
-                    ForEach(DeliveryMethod.allCases) { method in
+                    ForEach(availableDeliveryMethods) { method in
                         let isSelected = selectedDelivery == method
                         Button {
                             selectedDelivery = method
