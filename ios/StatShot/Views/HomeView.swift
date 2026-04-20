@@ -10,6 +10,7 @@ struct HomeView: View {
     @State private var selectedLeagueFilter: League?
     @State private var selectedGame: LeagueGame?
     @State private var showingArchived = false
+    @State private var showingSettings = false
     @State private var selectedGroup: GroupedEntity?
     /// Session-scoped dismissal for the denied-notifications banner. Resets
     /// when the app is relaunched — by design, so we keep nudging users
@@ -50,6 +51,13 @@ struct HomeView: View {
             }
             .navigationTitle("Favorites")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         showingAddAlert = true
@@ -57,6 +65,9 @@ struct HomeView: View {
                         Image(systemName: "plus")
                     }
                 }
+            }
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
             }
             .sheet(isPresented: $showingAddAlert) {
                 AddAlertView()
@@ -324,17 +335,49 @@ struct HomeView: View {
             } else if alerts.isEmpty {
                 emptyAlertsHint
             } else {
-                LazyVStack(spacing: 8) {
+                List {
                     ForEach(filteredAlerts) { alert in
                         AlertFeedCard(alert: alert, subscription: subscription(for: alert))
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowSeparator(.hidden)
                             .onTapGesture {
                                 guard let sub = subscription(for: alert) else { return }
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                                 selectedSubscription = sub
                             }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                if let sub = subscription(for: alert) {
+                                    Button(role: .destructive) {
+                                        Task {
+                                            await viewModel.deleteSubscription(sub)
+                                            UINotificationFeedbackGenerator().notificationOccurred(.success)
+                                        }
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                if let sub = subscription(for: alert) {
+                                    Button {
+                                        Task {
+                                            await viewModel.toggleSubscription(sub)
+                                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                        }
+                                    } label: {
+                                        Label(
+                                            sub.active ? "Pause" : "Resume",
+                                            systemImage: sub.active ? "pause.circle" : "play.circle"
+                                        )
+                                    }
+                                    .tint(sub.active ? .orange : .green)
+                                }
+                            }
                     }
                 }
-                .padding(.horizontal, 16)
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
     }
@@ -494,6 +537,12 @@ struct HomeView: View {
         // If every league's request failed, keep the previous list rather
         // than blanking the strip on a transient network flake.
         guard anySucceeded else { return }
+        // If the new list is empty but we previously had games and the user
+        // still has subs, keep the stale data — the empty result is likely a
+        // transient ESPN hiccup or a teamId-matching edge case, not "no games."
+        if collected.isEmpty && !filteredGames.isEmpty && !followedTeamIds.isEmpty {
+            return
+        }
         filteredGames = collected.sorted { a, b in
             rank(a.game.status) < rank(b.game.status)
         }
