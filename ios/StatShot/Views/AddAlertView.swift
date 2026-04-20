@@ -1,5 +1,11 @@
 import SwiftUI
 
+extension Notification.Name {
+    /// Posted after a new alert is successfully created. HomeView observes
+    /// this to dismiss all open sheets and return to the home screen.
+    static let alertCreatedGoHome = Notification.Name("alertCreatedGoHome")
+}
+
 /// Context for the game-scoped picker mode — shown when the user taps
 /// "Follow a Player from This Game" inside `GameDetailSheet`. Scopes the
 /// picker to the two teams in that game and their rosters, instead of a
@@ -729,6 +735,8 @@ struct AddAlertView: View {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         showSuccess = true
         try? await Task.sleep(for: .milliseconds(800))
+        // Dismiss the entire sheet stack back to HomeView
+        NotificationCenter.default.post(name: .alertCreatedGoHome, object: nil)
         dismiss()
     }
 
@@ -1095,6 +1103,21 @@ private struct RosterSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var roster: [RosterPlayer] = []
     @State private var isLoading = true
+    @State private var selectedPosition: String?
+
+    /// Unique position codes from the roster, sorted alphabetically.
+    private var positions: [String] {
+        let all = Set(roster.compactMap(\.position).filter { !$0.isEmpty })
+        return all.sorted()
+    }
+
+    private var filteredRoster: [RosterPlayer] {
+        let sorted = roster.sorted { a, b in
+            (a.position ?? "ZZZ") < (b.position ?? "ZZZ")
+        }
+        guard let pos = selectedPosition else { return sorted }
+        return sorted.filter { $0.position == pos }
+    }
 
     var body: some View {
         NavigationStack {
@@ -1109,7 +1132,12 @@ private struct RosterSheet: View {
                         description: Text("Couldn't load the roster for \(teamName).")
                     )
                 } else {
-                    rosterList
+                    VStack(spacing: 0) {
+                        if positions.count > 1 {
+                            positionFilters
+                        }
+                        rosterList
+                    }
                 }
             }
             .navigationTitle(teamName)
@@ -1124,9 +1152,45 @@ private struct RosterSheet: View {
         .preferredColorScheme(.dark)
     }
 
+    private var positionFilters: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                positionPill(label: "All", value: nil)
+                ForEach(positions, id: \.self) { pos in
+                    positionPill(label: pos, value: pos)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+        }
+        .background(Color(white: 0.06))
+    }
+
+    private func positionPill(label: String, value: String?) -> some View {
+        let isOn = selectedPosition == value
+        return Button {
+            UISelectionFeedbackGenerator().selectionChanged()
+            selectedPosition = value
+        } label: {
+            Text(label)
+                .font(.caption.bold())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    isOn ? league.color.opacity(0.25) : Color.secondary.opacity(0.12),
+                    in: Capsule()
+                )
+                .overlay(
+                    isOn ? Capsule().strokeBorder(league.color, lineWidth: 1.5) : nil
+                )
+                .foregroundStyle(isOn ? league.color : .secondary)
+        }
+        .buttonStyle(.plain)
+    }
+
     private var rosterList: some View {
         List {
-            ForEach(roster) { player in
+            ForEach(filteredRoster) { player in
                 Button {
                     let result = SearchResult(
                         id: player.id,

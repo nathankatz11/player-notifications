@@ -109,6 +109,16 @@ struct HomeView: View {
                 await loadAll()
                 await consumePendingDeepLink()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .alertCreatedGoHome)) { _ in
+                // Dismiss every open sheet so the user lands on the home screen
+                showingAddAlert = false
+                showingSettings = false
+                showingArchived = false
+                selectedSubscription = nil
+                selectedGame = nil
+                selectedGroup = nil
+                Task { await loadAll() }
+            }
             .refreshable {
                 await loadAll()
                 UIImpactFeedbackGenerator(style: .soft).impactOccurred()
