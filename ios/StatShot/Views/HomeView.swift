@@ -975,37 +975,40 @@ private struct EntityTriggersSheet: View {
 
                 List {
                     ForEach(subs) { sub in
-                        Button {
-                            onSelect(sub)
-                        } label: {
-                            HStack(spacing: 14) {
-                                Image(systemName: sub.active ? "bell.fill" : "bell.slash")
-                                    .foregroundStyle(sub.active ? sub.league.color : .secondary)
-                                    .frame(width: 28)
+                        HStack(spacing: 14) {
+                            Image(systemName: sub.active ? "bell.fill" : "bell.slash")
+                                .foregroundStyle(sub.active ? sub.league.color : .secondary)
+                                .frame(width: 28)
 
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(sub.trigger.displayName)
-                                        .font(.body.weight(.semibold))
-                                        .foregroundStyle(sub.active ? .primary : .secondary)
-                                    Text(sub.league.shortName)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                Spacer()
-
-                                Text(sub.active ? "Active" : "Paused")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(sub.active ? .green : .secondary)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(
-                                        (sub.active ? Color.green : Color.secondary).opacity(0.15),
-                                        in: Capsule()
-                                    )
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(sub.trigger.displayName)
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(sub.active ? .primary : .secondary)
+                                Text(sub.league.shortName)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
+
+                            Spacer()
+
+                            Text(sub.active ? "Active" : "Paused")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(sub.active ? .green : .secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(
+                                    (sub.active ? Color.green : Color.secondary).opacity(0.15),
+                                    in: Capsule()
+                                )
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.tertiary)
                         }
-                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            onSelect(sub)
+                        }
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
                                 Task {

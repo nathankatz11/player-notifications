@@ -210,29 +210,28 @@ struct GameDetailSheet: View {
 
             List {
                 ForEach(relevantSubscriptions) { sub in
-                    Button {
+                    HStack(spacing: 12) {
+                        avatar(for: sub)
+                            .frame(width: 36, height: 36)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(sub.entityName)
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            Text(sub.trigger.displayName)
+                                .font(.caption)
+                                .foregroundStyle(sub.league.color)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         selectedSubscription = sub
-                    } label: {
-                        HStack(spacing: 12) {
-                            avatar(for: sub)
-                                .frame(width: 36, height: 36)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(sub.entityName)
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(1)
-                                Text(sub.trigger.displayName)
-                                    .font(.caption)
-                                    .foregroundStyle(sub.league.color)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.tertiary)
-                        }
                     }
-                    .buttonStyle(.plain)
                     .listRowBackground(Color.secondary.opacity(0.10))
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
