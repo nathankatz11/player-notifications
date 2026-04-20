@@ -355,6 +355,10 @@ struct HomeView: View {
             } else if alerts.isEmpty {
                 emptyAlertsHint
             } else {
+                SwipeTip(key: "homeAlertSwipeTip")
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 4)
+
                 List {
                     ForEach(filteredAlerts) { alert in
                         AlertFeedCard(alert: alert, subscription: subscription(for: alert))
@@ -965,6 +969,10 @@ private struct EntityTriggersSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                SwipeTip(key: "entitySheetSwipeTip")
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+
                 List {
                     ForEach(subs) { sub in
                         Button {
