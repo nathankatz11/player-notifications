@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { subscriptions } from "@/lib/db/schema";
+import { subscriptions, alerts } from "@/lib/db/schema";
 
 const updateSubscriptionSchema = z.object({
   active: z.boolean().optional(),
@@ -53,7 +53,7 @@ export async function PUT(
 
 /**
  * DELETE /api/subscriptions/[id]
- * Deactivate a subscription (soft delete).
+ * Hard delete a subscription and its related alert history.
  */
 export async function DELETE(
   _req: NextRequest,
@@ -61,15 +61,17 @@ export async function DELETE(
 ) {
   const { id } = await params;
 
-  const [deactivated] = await db
-    .update(subscriptions)
-    .set({ active: false })
+  // Delete related alerts first (FK constraint)
+  await db.delete(alerts).where(eq(alerts.subscriptionId, id));
+
+  const deleted = await db
+    .delete(subscriptions)
     .where(eq(subscriptions.id, id))
     .returning();
 
-  if (!deactivated) {
+  if (deleted.length === 0) {
     return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ deactivated: true });
+  return NextResponse.json({ deleted: true });
 }
