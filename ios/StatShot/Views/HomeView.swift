@@ -236,6 +236,16 @@ struct HomeView: View {
                             }
                         }
                         Divider()
+                        Button {
+                            Task {
+                                for sub in group.subscriptions where sub.active {
+                                    await viewModel.toggleSubscription(sub)
+                                }
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            }
+                        } label: {
+                            Label("Pause All", systemImage: "pause.circle")
+                        }
                         Button(role: .destructive) {
                             Task {
                                 for sub in group.subscriptions {

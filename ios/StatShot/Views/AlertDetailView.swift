@@ -59,15 +59,18 @@ struct AlertDetailView: View {
         self.onDeleted = onDeleted
     }
 
+    @State private var showAlerts = false
+    @State private var showingAddMore = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 16) {
                     headerSection
-                    toggleSection
-                    recentAlertsSection
-                    customizeSection
-                    deleteSection
+                    actionsRow
+                    infoSection
+                    alertsDisclosure
+                    addMoreButton
                 }
                 .padding(16)
             }
@@ -173,87 +176,162 @@ struct AlertDetailView: View {
         )
     }
 
-    // MARK: - Toggle
+    // MARK: - Actions Row (pause + delete side-by-side)
 
-    private var toggleSection: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Alert Active")
-                    .font(.headline)
-                Text(isActive ? "Notifications are on" : "Notifications paused")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    private var actionsRow: some View {
+        HStack(spacing: 10) {
+            Button {
+                isActive.toggle()
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Task {
+                    try? await APIService.shared.updateSubscription(
+                        id: subscription.id,
+                        active: isActive
+                    )
+                    subscription.active = isActive
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: isActive ? "pause.circle.fill" : "play.circle.fill")
+                    Text(isActive ? "Pause" : "Resume")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(
+                    (isActive ? Color.orange : Color.green).opacity(0.15),
+                    in: RoundedRectangle(cornerRadius: 12)
+                )
+                .foregroundStyle(isActive ? .orange : .green)
             }
-            Spacer()
-            Toggle("", isOn: $isActive)
-                .tint(leagueColor)
-                .labelsHidden()
+            .buttonStyle(.plain)
+
+            Button {
+                showDeleteConfirmation = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "trash")
+                    Text("Delete")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.red.opacity(0.15), in: RoundedRectangle(cornerRadius: 12))
+                .foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
         }
-        .padding(16)
+    }
+
+    // MARK: - Info (read-only trigger + delivery)
+
+    private var infoSection: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Trigger")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(subscription.trigger.displayName)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(leagueColor)
+            }
+            .padding(14)
+
+            Divider().padding(.leading, 14)
+
+            HStack {
+                Text("Delivery")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                HStack(spacing: 4) {
+                    Image(systemName: subscription.deliveryMethod.icon)
+                        .font(.caption)
+                    Text(subscription.deliveryMethod.displayName)
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(leagueColor)
+            }
+            .padding(14)
+
+            Divider().padding(.leading, 14)
+
+            HStack {
+                Text("Status")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(isActive ? .green : .orange)
+                        .frame(width: 8, height: 8)
+                    Text(isActive ? "Active" : "Paused")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(isActive ? .green : .orange)
+                }
+            }
+            .padding(14)
+        }
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color(white: 0.11))
         )
-        .onChange(of: isActive) { _, newValue in
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            Task {
-                try? await APIService.shared.updateSubscription(
-                    id: subscription.id,
-                    active: newValue
-                )
-                subscription.active = newValue
-            }
-        }
     }
 
-    // MARK: - Recent Alerts
+    // MARK: - Alerts (collapsed by default)
 
-    private var recentAlertsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Recent Alerts")
-                .font(.headline)
-                .padding(.horizontal, 4)
-
-            if viewModel.isLoading {
+    private var alertsDisclosure: some View {
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) { showAlerts.toggle() }
+            } label: {
                 HStack {
+                    Text("Recent Alerts")
+                        .font(.headline)
+                    if !viewModel.alerts.isEmpty {
+                        Text("\(viewModel.alerts.count)")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(leagueColor, in: Capsule())
+                    }
                     Spacer()
-                    ProgressView()
-                    Spacer()
-                }
-                .padding(.vertical, 20)
-            } else if viewModel.alerts.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "bell.slash")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                    Text("No alerts fired yet")
-                        .font(.subheadline.weight(.medium))
-                    Text("This will light up during game time.")
-                        .font(.caption)
+                    Image(systemName: showAlerts ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(.tertiary)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color(white: 0.11))
-                )
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(viewModel.alerts.enumerated()), id: \.element.id) { index, alert in
-                        alertRow(alert)
-                        if index < viewModel.alerts.count - 1 {
-                            Divider()
-                                .padding(.leading, 40)
+                .padding(14)
+            }
+            .buttonStyle(.plain)
+
+            if showAlerts {
+                Divider().padding(.leading, 14)
+                if viewModel.isLoading {
+                    ProgressView().padding(.vertical, 20).frame(maxWidth: .infinity)
+                } else if viewModel.alerts.isEmpty {
+                    Text("No alerts fired yet.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .padding(.vertical, 16)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(Array(viewModel.alerts.prefix(10).enumerated()), id: \.element.id) { index, alert in
+                            alertRow(alert)
+                            if index < min(viewModel.alerts.count, 10) - 1 {
+                                Divider().padding(.leading, 40)
+                            }
                         }
                     }
                 }
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color(white: 0.11))
-                )
             }
         }
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(white: 0.11))
+        )
     }
 
     private func alertRow(_ alert: AlertItem) -> some View {
@@ -286,9 +364,34 @@ struct AlertDetailView: View {
         }
     }
 
-    // MARK: - Customize
+    // MARK: - Add More
 
-    private var customizeSection: some View {
+    private var addMoreButton: some View {
+        Button {
+            showingAddMore = true
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.body)
+                Text("More alerts for \(subscription.entityName)")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(leagueColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 14))
+            .foregroundStyle(leagueColor)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showingAddMore) {
+            AddAlertView(initialLeague: subscription.league)
+        }
+        .padding(.bottom, 12)
+    }
+
+    // MARK: - Customize (removed — now informational via infoSection)
+
+    @available(*, deprecated, message: "Replaced by infoSection")
+    private var customizeSection_deprecated: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Customize")
                 .font(.headline)
