@@ -84,11 +84,13 @@ struct AddAlertView: View {
                         isCreating: isCreating,
                         onBack: {
                             step = .search
-                            // Re-focus search field on return
                             DispatchQueue.main.async { searchFocused = true }
                         },
                         onPick: { trigger in
                             Task { await createAlert(entity: entity, league: league, trigger: trigger) }
+                        },
+                        onPickPlayer: { player in
+                            step = .trigger(player, league)
                         }
                     )
                 }
@@ -812,13 +814,25 @@ private struct TriggerStep: View {
     let isCreating: Bool
     let onBack: () -> Void
     let onPick: (TriggerType) -> Void
+    /// Called when the user picks a player from the "Browse Players" roster.
+    /// The parent view should transition to a new TriggerStep for that player.
+    var onPickPlayer: ((SearchResult) -> Void)?
 
     @State private var pendingTrigger: TriggerType?
+    @State private var roster: [RosterPlayer] = []
+    @State private var rosterLoading = false
+    @State private var showRoster = false
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
+
+            // "Browse Players" for team entities
+            if entity.type == "team" && onPickPlayer != nil {
+                browsePlayersSection
+            }
+
             ScrollView {
                 if league.triggers.isEmpty {
                     VStack(spacing: 8) {
@@ -851,6 +865,101 @@ private struct TriggerStep: View {
                     .padding(16)
                 }
             }
+        }
+    }
+
+    // MARK: - Browse Players
+
+    private var browsePlayersSection: some View {
+        VStack(spacing: 0) {
+            Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                showRoster.toggle()
+                if showRoster && roster.isEmpty {
+                    Task { await loadTeamRoster() }
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "person.2.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(league.color)
+                    Text("Choose a Player")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Image(systemName: showRoster ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+
+            if showRoster {
+                Divider().padding(.leading, 16)
+                if rosterLoading {
+                    ProgressView()
+                        .padding(.vertical, 16)
+                } else {
+                    LazyVStack(spacing: 0) {
+                        ForEach(roster) { player in
+                            Button {
+                                let result = SearchResult(
+                                    id: player.id,
+                                    name: player.name,
+                                    type: "player",
+                                    imageUrl: player.headshotUrl,
+                                    position: player.position
+                                )
+                                onPickPlayer?(result)
+                            } label: {
+                                HStack(spacing: 10) {
+                                    PlayerAvatar(
+                                        name: player.name,
+                                        espnId: player.id,
+                                        league: league,
+                                        storedURL: player.headshotUrl,
+                                        size: 72
+                                    )
+                                    .frame(width: 34, height: 34)
+
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(player.name)
+                                            .font(.subheadline.weight(.medium))
+                                        if let pos = player.position {
+                                            Text(pos)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+        .background(Color(white: 0.08))
+    }
+
+    @MainActor
+    private func loadTeamRoster() async {
+        rosterLoading = true
+        defer { rosterLoading = false }
+        do {
+            roster = try await APIService.shared.fetchRoster(
+                league: league.rawValue,
+                teamId: entity.id
+            )
+        } catch {
+            roster = []
         }
     }
 

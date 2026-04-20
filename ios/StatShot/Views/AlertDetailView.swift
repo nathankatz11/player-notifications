@@ -281,38 +281,92 @@ struct AlertDetailView: View {
                 .font(.headline)
                 .padding(.horizontal, 4)
 
-            VStack(spacing: 0) {
-                // Trigger picker
-                HStack {
-                    Text("Trigger")
-                        .font(.subheadline)
-                    Spacer()
-                    Picker("Trigger", selection: $selectedTrigger) {
-                        ForEach(subscription.league.triggers) { trigger in
-                            Text(trigger.displayName).tag(trigger)
-                        }
-                    }
-                    .tint(leagueColor)
-                }
-                .padding(14)
+            // Trigger selection — chip grid instead of a plain Picker
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Trigger")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
 
-                Divider()
-                    .padding(.leading, 14)
-
-                // Delivery picker
-                HStack {
-                    Text("Delivery")
-                        .font(.subheadline)
-                    Spacer()
-                    Picker("Delivery", selection: $selectedDelivery) {
-                        ForEach(DeliveryMethod.allCases) { method in
-                            Text(method.displayName).tag(method)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
+                    ForEach(subscription.league.triggers) { trigger in
+                        let isSelected = selectedTrigger == trigger
+                        Button {
+                            selectedTrigger = trigger
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                    .font(.caption)
+                                Text(trigger.displayName)
+                                    .font(.subheadline.weight(.medium))
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                isSelected
+                                    ? leagueColor.opacity(0.2)
+                                    : Color(white: 0.15),
+                                in: Capsule()
+                            )
+                            .overlay(
+                                isSelected
+                                    ? Capsule().strokeBorder(leagueColor, lineWidth: 1.5)
+                                    : nil
+                            )
+                            .foregroundStyle(isSelected ? leagueColor : .secondary)
                         }
+                        .buttonStyle(.plain)
                     }
-                    .tint(leagueColor)
                 }
-                .padding(14)
             }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(white: 0.11))
+            )
+
+            // Delivery method — icon cards
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Delivery")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+
+                HStack(spacing: 10) {
+                    ForEach(DeliveryMethod.allCases) { method in
+                        let isSelected = selectedDelivery == method
+                        Button {
+                            selectedDelivery = method
+                        } label: {
+                            VStack(spacing: 6) {
+                                Image(systemName: method.icon)
+                                    .font(.title3)
+                                Text(method.displayName)
+                                    .font(.caption2.weight(.semibold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(
+                                isSelected
+                                    ? leagueColor.opacity(0.2)
+                                    : Color(white: 0.15),
+                                in: RoundedRectangle(cornerRadius: 12)
+                            )
+                            .overlay(
+                                isSelected
+                                    ? RoundedRectangle(cornerRadius: 12)
+                                        .strokeBorder(leagueColor, lineWidth: 1.5)
+                                    : nil
+                            )
+                            .foregroundStyle(isSelected ? leagueColor : .secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(Color(white: 0.11))
@@ -342,19 +396,18 @@ struct AlertDetailView: View {
         Button(role: .destructive) {
             showDeleteConfirmation = true
         } label: {
-            HStack {
-                Spacer()
+            HStack(spacing: 8) {
                 Image(systemName: "trash")
+                    .font(.body.weight(.semibold))
                 Text("Delete Alert")
-                    .fontWeight(.semibold)
-                Spacer()
+                    .font(.body.weight(.semibold))
             }
-            .padding(14)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(Color.red.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+            .foregroundStyle(.red)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.red.opacity(0.1))
-        )
+        .buttonStyle(.plain)
         .padding(.bottom, 20)
     }
 }

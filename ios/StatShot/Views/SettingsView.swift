@@ -3,6 +3,7 @@ import UserNotifications
 
 struct SettingsView: View {
     @Environment(AuthViewModel.self) private var authViewModel
+    @Environment(\.dismiss) private var dismiss
     @State private var activeAlertCount: Int = 0
     @State private var notificationsEnabled: Bool = false
     @State private var showingSignOutConfirmation = false
@@ -13,38 +14,38 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                accountSection
-                contactSection
-                alertsSection
-                notificationSection
-                aboutSection
-            }
-            .navigationTitle("Settings")
-            .task {
-                await loadActiveAlerts()
-                await checkNotificationStatus()
-                await authViewModel.loadProfile()
-            }
-            // Re-query on every appearance (e.g. tab switch) so the row
-            // reflects changes made in iOS Settings while the app was
-            // foregrounded on a different tab.
-            .onChange(of: NotificationAuthState.shared.status) { _, status in
-                notificationsEnabled = (status == .authorized || status == .provisional)
-            }
-            .confirmationDialog(
-                "Sign out of StatShot?",
-                isPresented: $showingSignOutConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button("Sign Out", role: .destructive) {
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    authViewModel.signOut()
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("You'll stop receiving alerts until you sign back in.")
-            }
+            settingsContent
+                .navigationTitle("Settings")
+                .toolbar { doneButton }
+        }
+    }
+
+    private var doneButton: some ToolbarContent {
+        ToolbarItem(placement: .confirmationAction) {
+            Button("Done") { dismiss() }
+        }
+    }
+
+    private var settingsContent: some View {
+        Form {
+            accountSection
+            contactSection
+            alertsSection
+            notificationSection
+            aboutSection
+        }
+        .task { await onAppearLoad() }
+        .onChange(of: NotificationAuthState.shared.status) { _, status in
+            notificationsEnabled = (status == .authorized || status == .provisional)
+        }
+        .confirmationDialog(
+            "Sign out of StatShot?",
+            isPresented: $showingSignOutConfirmation,
+            titleVisibility: .visible
+        ) {
+            signOutDialogButtons
+        } message: {
+            Text("You'll stop receiving alerts until you sign back in.")
         }
     }
 
@@ -197,6 +198,21 @@ struct SettingsView: View {
     }
 
     // MARK: - Data
+
+    @ViewBuilder
+    private var signOutDialogButtons: some View {
+        Button("Sign Out", role: .destructive) {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            authViewModel.signOut()
+        }
+        Button("Cancel", role: .cancel) {}
+    }
+
+    private func onAppearLoad() async {
+        await loadActiveAlerts()
+        await checkNotificationStatus()
+        await authViewModel.loadProfile()
+    }
 
     private func loadActiveAlerts() async {
         guard let userId = AuthService.shared.currentUserId else { return }
