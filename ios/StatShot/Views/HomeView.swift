@@ -10,6 +10,7 @@ struct HomeView: View {
     @State private var selectedLeagueFilter: League?
     @State private var selectedGame: LeagueGame?
     @State private var showingArchived = false
+    @State private var selectedGroup: GroupedEntity?
     /// Session-scoped dismissal for the denied-notifications banner. Resets
     /// when the app is relaunched — by design, so we keep nudging users
     /// whose pushes would otherwise never arrive.
@@ -76,6 +77,12 @@ struct HomeView: View {
                         selectedSubscription = sub
                     }
                 )
+            }
+            .sheet(item: $selectedGroup) { group in
+                EntityTriggersSheet(group: group) { sub in
+                    selectedGroup = nil
+                    selectedSubscription = sub
+                }
             }
             .onChange(of: showingAddAlert) { _, isShowing in
                 if !isShowing { Task { await loadAll() } }
@@ -200,7 +207,11 @@ struct HomeView: View {
                     )
                     .onTapGesture {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        selectedSubscription = group.subscriptions.first(where: \.active) ?? group.subscriptions[0]
+                        if group.subscriptions.count == 1 {
+                            selectedSubscription = group.subscriptions[0]
+                        } else {
+                            selectedGroup = group
+                        }
                     }
                     .contextMenu {
                         ForEach(group.subscriptions) { sub in
@@ -858,6 +869,67 @@ private struct ArchivedSubscriptionsView: View {
                 }
             }
             .navigationTitle("Archived")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
+// MARK: - Entity Triggers Sheet
+
+/// Shown when a grouped favorite (badge > 1) is tapped. Lists all
+/// subscriptions for that entity so the user can pick which trigger to
+/// inspect/manage.
+private struct EntityTriggersSheet: View {
+    let group: GroupedEntity
+    let onSelect: (Subscription) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(group.subscriptions) { sub in
+                    Button {
+                        onSelect(sub)
+                    } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: sub.active ? "bell.fill" : "bell.slash")
+                                .foregroundStyle(sub.active ? sub.league.color : .secondary)
+                                .frame(width: 28)
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(sub.trigger.displayName)
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(sub.active ? .primary : .secondary)
+                                Text(sub.trigger.triggerDescription)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            Text(sub.active ? "Active" : "Paused")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(sub.active ? .green : .secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(
+                                    (sub.active ? Color.green : Color.secondary).opacity(0.15),
+                                    in: Capsule()
+                                )
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle(group.entityName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
