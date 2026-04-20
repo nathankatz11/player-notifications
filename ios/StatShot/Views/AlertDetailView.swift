@@ -68,7 +68,6 @@ struct AlertDetailView: View {
                 VStack(spacing: 16) {
                     headerSection
                     actionsRow
-                    infoSection
                     alertsDisclosure
                     addMoreButton
                 }
@@ -156,10 +155,17 @@ struct AlertDetailView: View {
                 .font(.title2.bold())
                 .multilineTextAlignment(.center)
 
-            Text(subscription.trigger.triggerDescription)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+            Text(subscription.trigger.displayName)
+                .font(.headline)
+                .foregroundStyle(leagueColor)
+
+            HStack(spacing: 6) {
+                Image(systemName: subscription.deliveryMethod.icon)
+                    .font(.caption)
+                Text(subscription.deliveryMethod.displayName)
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(.secondary)
 
             Text(subscription.league.displayName)
                 .font(.caption.weight(.semibold))
@@ -225,59 +231,7 @@ struct AlertDetailView: View {
 
     // MARK: - Info (read-only trigger + delivery)
 
-    private var infoSection: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Trigger")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(subscription.trigger.displayName)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(leagueColor)
-            }
-            .padding(14)
-
-            Divider().padding(.leading, 14)
-
-            HStack {
-                Text("Delivery")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                HStack(spacing: 4) {
-                    Image(systemName: subscription.deliveryMethod.icon)
-                        .font(.caption)
-                    Text(subscription.deliveryMethod.displayName)
-                        .font(.subheadline.weight(.semibold))
-                }
-                .foregroundStyle(leagueColor)
-            }
-            .padding(14)
-
-            Divider().padding(.leading, 14)
-
-            HStack {
-                Text("Status")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(isActive ? .green : .orange)
-                        .frame(width: 8, height: 8)
-                    Text(isActive ? "Active" : "Paused")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(isActive ? .green : .orange)
-                }
-            }
-            .padding(14)
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(white: 0.11))
-        )
-    }
+    // Info section removed — trigger + delivery now shown in header.
 
     // MARK: - Alerts (collapsed by default)
 
@@ -383,7 +337,16 @@ struct AlertDetailView: View {
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showingAddMore) {
-            AddAlertView(initialLeague: subscription.league)
+            AddAlertView(
+                preselectedEntity: SearchResult(
+                    id: subscription.entityId,
+                    name: subscription.entityName,
+                    type: subscription.type == .teamEvent ? "team" : "player",
+                    imageUrl: subscription.photoUrl,
+                    position: subscription.position
+                ),
+                preselectedLeague: subscription.league
+            )
         }
         .padding(.bottom, 12)
     }

@@ -67,6 +67,14 @@ struct AddAlertView: View {
         _selectedLeague = State(initialValue: gameContext.league)
     }
 
+    /// Deep-link init: opens directly to the trigger step for a specific entity.
+    init(preselectedEntity: SearchResult, preselectedLeague: League) {
+        self.initialLeague = preselectedLeague
+        self.gameContext = nil
+        _selectedLeague = State(initialValue: preselectedLeague)
+        _step = State(initialValue: .trigger(preselectedEntity, preselectedLeague))
+    }
+
     var body: some View {
         NavigationStack {
             Group {

@@ -949,45 +949,97 @@ private struct EntityTriggersSheet: View {
     let onSelect: (Subscription) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @State private var showingAddMore = false
+    @State private var subs: [Subscription] = []
 
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(group.subscriptions) { sub in
-                    Button {
-                        onSelect(sub)
-                    } label: {
-                        HStack(spacing: 14) {
-                            Image(systemName: sub.active ? "bell.fill" : "bell.slash")
-                                .foregroundStyle(sub.active ? sub.league.color : .secondary)
-                                .frame(width: 28)
+            VStack(spacing: 0) {
+                List {
+                    ForEach(subs) { sub in
+                        Button {
+                            onSelect(sub)
+                        } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: sub.active ? "bell.fill" : "bell.slash")
+                                    .foregroundStyle(sub.active ? sub.league.color : .secondary)
+                                    .frame(width: 28)
 
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(sub.trigger.displayName)
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(sub.active ? .primary : .secondary)
-                                Text(sub.trigger.triggerDescription)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(sub.trigger.displayName)
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(sub.active ? .primary : .secondary)
+                                    Text(sub.league.shortName)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+
+                                Text(sub.active ? "Active" : "Paused")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(sub.active ? .green : .secondary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(
+                                        (sub.active ? Color.green : Color.secondary).opacity(0.15),
+                                        in: Capsule()
+                                    )
                             }
-
-                            Spacer()
-
-                            Text(sub.active ? "Active" : "Paused")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(sub.active ? .green : .secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(
-                                    (sub.active ? Color.green : Color.secondary).opacity(0.15),
-                                    in: Capsule()
+                        }
+                        .buttonStyle(.plain)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                Task {
+                                    try? await APIService.shared.deleteSubscription(id: sub.id)
+                                    subs.removeAll { $0.id == sub.id }
+                                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                                    if subs.isEmpty { dismiss() }
+                                }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            Button {
+                                Task {
+                                    let newActive = !sub.active
+                                    try? await APIService.shared.updateSubscription(id: sub.id, active: newActive)
+                                    if let idx = subs.firstIndex(where: { $0.id == sub.id }) {
+                                        subs[idx].active = newActive
+                                    }
+                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                }
+                            } label: {
+                                Label(
+                                    sub.active ? "Pause" : "Resume",
+                                    systemImage: sub.active ? "pause.circle" : "play.circle"
                                 )
+                            }
+                            .tint(sub.active ? .orange : .green)
                         }
                     }
-                    .buttonStyle(.plain)
                 }
+                .listStyle(.insetGrouped)
+
+                // More alerts button
+                Button {
+                    showingAddMore = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus.circle.fill")
+                        Text("More alerts for \(group.entityName)")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(group.league.color.opacity(0.15), in: RoundedRectangle(cornerRadius: 14))
+                    .foregroundStyle(group.league.color)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
             }
-            .listStyle(.insetGrouped)
             .navigationTitle(group.entityName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -995,7 +1047,21 @@ private struct EntityTriggersSheet: View {
                     Button("Done") { dismiss() }
                 }
             }
+            .sheet(isPresented: $showingAddMore) {
+                AddAlertView(
+                    preselectedEntity: SearchResult(
+                        id: group.entityId,
+                        name: group.entityName,
+                        type: group.type == .teamEvent ? "team" : "player",
+                        imageUrl: nil,
+                        position: nil
+                    ),
+                    preselectedLeague: group.league
+                )
+            }
+            .presentationDetents([.medium, .large])
         }
         .preferredColorScheme(.dark)
+        .onAppear { subs = group.subscriptions }
     }
 }

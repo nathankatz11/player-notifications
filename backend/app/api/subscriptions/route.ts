@@ -83,6 +83,26 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Reject duplicates: same user + entity + trigger that's already active.
+  const [existing] = await db
+    .select({ id: subscriptions.id })
+    .from(subscriptions)
+    .where(
+      and(
+        eq(subscriptions.userId, userId),
+        eq(subscriptions.entityId, entityId),
+        eq(subscriptions.trigger, trigger),
+        eq(subscriptions.active, true)
+      )
+    )
+    .limit(1);
+  if (existing) {
+    return NextResponse.json(
+      { error: "You already have this alert active." },
+      { status: 409 }
+    );
+  }
+
   // For player subs, resolve the player's current team + headshot URL via
   // ESPN so the client can filter "my games today" and render a reliable
   // avatar. Best-effort — nulls are fine. For MLB player subs we *also*

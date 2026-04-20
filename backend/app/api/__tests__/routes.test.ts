@@ -195,7 +195,9 @@ describe("POST /api/subscriptions", () => {
   it("returns 201 + new row on valid body (premium user skips free-tier check)", async () => {
     // 1) user lookup → premium user
     dbResultQueue.push([{ id: validBody.userId, plan: "premium" }]);
-    // 2) insert().values().returning() → created row
+    // 2) duplicate check → no existing sub
+    dbResultQueue.push([]);
+    // 3) insert().values().returning() → created row
     const newRow = {
       id: "sub-1",
       ...validBody,

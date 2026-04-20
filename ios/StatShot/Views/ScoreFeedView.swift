@@ -208,33 +208,66 @@ struct GameDetailSheet: View {
                 .foregroundStyle(.secondary)
                 .tracking(0.6)
 
-            ForEach(relevantSubscriptions) { sub in
-                Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    selectedSubscription = sub
-                } label: {
-                    HStack(spacing: 12) {
-                        avatar(for: sub)
-                            .frame(width: 36, height: 36)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(sub.entityName)
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                            Text(sub.trigger.displayName)
-                                .font(.caption)
-                                .foregroundStyle(sub.league.color)
+            List {
+                ForEach(relevantSubscriptions) { sub in
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        selectedSubscription = sub
+                    } label: {
+                        HStack(spacing: 12) {
+                            avatar(for: sub)
+                                .frame(width: 36, height: 36)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(sub.entityName)
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                Text(sub.trigger.displayName)
+                                    .font(.caption)
+                                    .foregroundStyle(sub.league.color)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.tertiary)
                     }
-                    .padding(10)
-                    .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+                    .buttonStyle(.plain)
+                    .listRowBackground(Color.secondary.opacity(0.10))
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            Task {
+                                try? await APIService.shared.deleteSubscription(id: sub.id)
+                                relevantSubscriptions.removeAll { $0.id == sub.id }
+                                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                            }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        Button {
+                            Task {
+                                let newActive = !sub.active
+                                try? await APIService.shared.updateSubscription(id: sub.id, active: newActive)
+                                if let idx = relevantSubscriptions.firstIndex(where: { $0.id == sub.id }) {
+                                    relevantSubscriptions[idx].active = newActive
+                                }
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            }
+                        } label: {
+                            Label(
+                                sub.active ? "Pause" : "Resume",
+                                systemImage: sub.active ? "pause.circle" : "play.circle"
+                            )
+                        }
+                        .tint(sub.active ? .orange : .green)
+                    }
                 }
-                .buttonStyle(.plain)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .frame(height: CGFloat(relevantSubscriptions.count) * 56)
         }
     }
 
