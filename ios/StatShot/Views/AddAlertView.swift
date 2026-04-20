@@ -42,6 +42,8 @@ struct AddAlertView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var leagueTask: Task<Void, Never>?
     @FocusState private var searchFocused: Bool
+    @State private var liveGames: [LiveGame] = []
+    @State private var pickedGameForFollow: LiveGame?
 
     // Roster-mode state (only used when gameContext != nil)
     @State private var selectedSide: RosterSide = .away
@@ -164,6 +166,20 @@ struct AddAlertView: View {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.viewModel.loadTeams() }
             group.addTask { await self.viewModel.loadTrending() }
+            group.addTask {
+                do {
+                    let data = try await APIService.shared.fetchScores(
+                        league: self.selectedLeague.rawValue
+                    )
+                    let decoded = try JSONDecoder().decode(
+                        ScoresResponse.self,
+                        from: data
+                    )
+                    await MainActor.run { self.liveGames = decoded.games }
+                } catch {
+                    await MainActor.run { self.liveGames = [] }
+                }
+            }
         }
     }
 
@@ -381,6 +397,36 @@ struct AddAlertView: View {
             }
         }
         .onAppear { searchFocused = true }
+        .confirmationDialog(
+            "Follow a team",
+            isPresented: .init(
+                get: { pickedGameForFollow != nil },
+                set: { if !$0 { pickedGameForFollow = nil } }
+            ),
+            presenting: pickedGameForFollow
+        ) { game in
+            if let away = game.awayTeam {
+                Button(away.team) {
+                    pickTeamFromCompetitor(away)
+                }
+            }
+            if let home = game.homeTeam {
+                Button(home.team) {
+                    pickTeamFromCompetitor(home)
+                }
+            }
+        }
+    }
+
+    private func pickTeamFromCompetitor(_ comp: Competitor) {
+        let result = SearchResult(
+            id: comp.teamId ?? comp.abbreviation,
+            name: comp.team,
+            type: "team",
+            imageUrl: nil,
+            position: nil
+        )
+        pickEntity(result)
     }
 
     private var leaguePills: some View {
@@ -451,13 +497,60 @@ struct AddAlertView: View {
         }
     }
 
-    // MARK: - Quick picks (empty query)
+    // MARK: - Discovery (empty query)
 
     @ViewBuilder
     private var quickPicks: some View {
+        // 1. Live / today's games — tap opens the game-scoped roster picker
+        let activeGames = liveGames.filter { $0.status == "in" || $0.status == "pre" }
+        if !activeGames.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Today's Games")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(activeGames) { game in
+                            discoveryScoreTile(game)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. All teams — visual logo grid
+        if !viewModel.teams.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Teams")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 72), spacing: 14)],
+                    spacing: 14
+                ) {
+                    ForEach(viewModel.teams) { team in
+                        Button {
+                            pickTeam(team)
+                        } label: {
+                            VStack(spacing: 6) {
+                                teamLogo(team, size: 48)
+                                Text(team.abbreviation)
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                            }
+                            .frame(width: 72)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+
+        // 3. Trending players
         if !viewModel.trendingPlayers.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Trending")
+                Text("Trending Players")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -486,44 +579,55 @@ struct AddAlertView: View {
             }
         }
 
-        if !viewModel.teams.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Popular Teams")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 110), spacing: 8)],
-                    alignment: .leading,
-                    spacing: 8
-                ) {
-                    ForEach(viewModel.teams.prefix(12)) { team in
-                        Button {
-                            pickTeam(team)
-                        } label: {
-                            HStack(spacing: 8) {
-                                teamLogo(team, size: 22)
-                                Text(team.abbreviation)
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(1)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(Color.secondary.opacity(0.12))
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-
         if viewModel.isLoadingTeams && viewModel.teams.isEmpty {
             HStack { Spacer(); ProgressView(); Spacer() }
         }
+    }
+
+    /// Compact score tile for the discovery section. Tapping shows a quick
+    /// picker for which team to follow.
+    private func discoveryScoreTile(_ game: LiveGame) -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            pickedGameForFollow = game
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                tileTeamRow(game.awayTeam)
+                tileTeamRow(game.homeTeam)
+                Text(game.statusText)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(game.isLive ? .red : .secondary)
+            }
+            .padding(10)
+            .frame(width: 160)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func tileTeamRow(_ side: Competitor?) -> some View {
+        HStack(spacing: 6) {
+            AsyncImage(
+                url: tileLogoURL(side?.abbreviation ?? "")
+            ) { image in
+                image.resizable().scaledToFit()
+            } placeholder: {
+                Circle().fill(.tertiary)
+            }
+            .frame(width: 18, height: 18)
+            Text(side?.abbreviation ?? "—")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(side?.score ?? "—")
+                .font(.subheadline.bold())
+                .monospacedDigit()
+        }
+    }
+
+    private func tileLogoURL(_ abbr: String) -> URL? {
+        URL(string: "https://a.espncdn.com/i/teamlogos/\(selectedLeague.espnSport)/500/\(abbr.lowercased()).png")
     }
 
     // MARK: - Search results (non-empty query)

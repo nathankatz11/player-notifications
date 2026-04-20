@@ -49,7 +49,7 @@ struct HomeView: View {
                     feedContent
                 }
             }
-            .navigationTitle("Favorites")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
