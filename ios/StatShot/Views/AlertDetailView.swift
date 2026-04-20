@@ -288,32 +288,40 @@ struct AlertDetailView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 4)
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                    spacing: 10
+                ) {
                     ForEach(subscription.league.triggers) { trigger in
                         let isSelected = selectedTrigger == trigger
                         Button {
                             selectedTrigger = trigger
                         } label: {
-                            HStack(spacing: 5) {
+                            HStack(spacing: 6) {
                                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                    .font(.caption)
+                                    .font(.subheadline)
                                 Text(trigger.displayName)
                                     .font(.subheadline.weight(.medium))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.75)
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
                             .background(
                                 isSelected
                                     ? leagueColor.opacity(0.2)
                                     : Color(white: 0.15),
-                                in: Capsule()
+                                in: RoundedRectangle(cornerRadius: 12)
                             )
                             .overlay(
-                                isSelected
-                                    ? Capsule().strokeBorder(leagueColor, lineWidth: 1.5)
-                                    : nil
+                                RoundedRectangle(cornerRadius: 12)
+                                    .strokeBorder(
+                                        isSelected ? leagueColor : Color(white: 0.25),
+                                        lineWidth: isSelected ? 1.5 : 0.5
+                                    )
                             )
-                            .foregroundStyle(isSelected ? leagueColor : .secondary)
+                            .foregroundStyle(isSelected ? leagueColor : .primary)
                         }
                         .buttonStyle(.plain)
                     }

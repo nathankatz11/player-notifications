@@ -276,9 +276,16 @@ export interface RosterPlayer {
 }
 
 /**
- * Fetch the current roster for a team. Returns a flat list — ESPN groups by
- * position (pitchers / batters / etc.), we flatten and surface the group name
- * as `position` on each player.
+ * Fetch the current roster for a team. Returns a flat list.
+ *
+ * ESPN uses two formats depending on the sport:
+ *   - MLB: `{ athletes: [{ position: "Pitchers", items: [{...}] }, ...] }`
+ *     — grouped by position with player objects in `items`.
+ *   - NBA/NFL/NHL/etc: `{ athletes: [{ id, displayName, headshot, ... }, ...] }`
+ *     — flat array of player objects directly in `athletes`.
+ *
+ * We detect the format by checking whether the first entry has an `items`
+ * key (grouped) or a top-level `id` (flat).
  */
 export async function fetchTeamRoster(
   league: League,
@@ -290,22 +297,49 @@ export async function fetchTeamRoster(
     throw new Error(`ESPN roster error: ${res.status} for ${league}/${teamId}`);
   }
   const data = await res.json();
+  const raw: unknown[] = data.athletes ?? [];
+  if (raw.length === 0) return [];
 
-  const groups: Array<{
-    position?: string;
-    items?: Array<{
+  const first = raw[0] as Record<string, unknown>;
+  const isGrouped = "items" in first;
+
+  const players: RosterPlayer[] = [];
+
+  if (isGrouped) {
+    // MLB-style grouped format
+    for (const group of raw as Array<{
+      position?: string;
+      items?: Array<{
+        id?: string | number;
+        displayName?: string;
+        fullName?: string;
+        headshot?: { href?: string };
+        position?: { displayName?: string; abbreviation?: string };
+      }>;
+    }>) {
+      const groupLabel = typeof group.position === "string" ? group.position : null;
+      for (const item of group.items ?? []) {
+        if (!item.id) continue;
+        players.push({
+          id: String(item.id),
+          name: String(item.displayName ?? item.fullName ?? ""),
+          headshotUrl: item.headshot?.href ?? null,
+          position:
+            item.position?.abbreviation ??
+            item.position?.displayName ??
+            groupLabel,
+        });
+      }
+    }
+  } else {
+    // NBA/NFL/NHL flat format
+    for (const item of raw as Array<{
       id?: string | number;
       displayName?: string;
       fullName?: string;
       headshot?: { href?: string };
       position?: { displayName?: string; abbreviation?: string };
-    }>;
-  }> = data.athletes ?? [];
-
-  const players: RosterPlayer[] = [];
-  for (const group of groups) {
-    const groupLabel = group.position ?? null;
-    for (const item of group.items ?? []) {
+    }>) {
       if (!item.id) continue;
       players.push({
         id: String(item.id),
@@ -314,7 +348,7 @@ export async function fetchTeamRoster(
         position:
           item.position?.abbreviation ??
           item.position?.displayName ??
-          groupLabel,
+          null,
       });
     }
   }
